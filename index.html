@@ -859,12 +859,12 @@ function mkOrgCard(e) {
   const lt     = leaderType(e);
   const ldrCls = lt==='c'?'ldr-c':lt==='head'?'ldr-head':lt==='team'?'ldr-team':'';
 
-  const asana = empAsana(e);
-  const note  = empNote(e);
+  const asana    = empAsana(e);
+  const empSabun = e.사번 || '';
   let linksHTML='';
-  if (asana||note) {
+  if (asana || empSabun) {
     const aL=asana?`<a class="oclink asana-link" href="${asana}" target="_blank" title="Asana">A</a>`:'';
-    const nL=empId?`<a class="oclink note-link" onclick="openProfile('${empId}')" style="cursor:pointer;" title="인사카드 보기">P</a>`:'';
+    const nL=empSabun?`<a class="oclink note-link" onclick="openProfile('${empSabun}')" style="cursor:pointer;" title="인사카드 보기">P</a>`:'';
     linksHTML=`<div class="oclinks">${aL}${nL}</div>`;
   }
 
