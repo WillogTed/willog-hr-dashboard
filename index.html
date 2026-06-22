@@ -1544,7 +1544,7 @@ function calcTotalV3(prevY, prevM, joinDate){
 }
 function showProfLoading(show){
   document.getElementById('prof-loading').style.display=show?'flex':'none';
-  ['basic','salary','history','eval','ceo'].forEach(id=>{
+  ['basic','family','interview','probation','history','salary','eval'].forEach(id=>{
     const el=document.getElementById('ptab-'+id);
     el.classList.remove('active'); el.innerHTML='';
   });
