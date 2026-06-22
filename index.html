@@ -261,6 +261,76 @@ td.yel{color:var(--yellow);}
 .prof-nav-btn:hover{border-color:#2563eb;color:#2563eb;}.prof-nav-btn.primary{background:#2563eb;border-color:#2563eb;color:#fff;}.prof-nav-btn.primary:hover{background:#1d4ed8;}
 .prof-nav-meta{font-size:11px;color:#94a3b8;}
 .prof-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px;color:#94a3b8;gap:12px;}
+
+/* ── 이벤트 배지 ── */
+.ev-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.ev-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:700;}
+.ev-visa{background:#ef444415;color:#ef4444;border:1px solid #fca5a5;}
+.ev-bday{background:#f59e0b15;color:#d97706;border:1px solid #fde68a;}
+.ev-anni{background:#ec489915;color:#db2777;border:1px solid #fbcfe8;}
+.ev-salary{background:#6366f115;color:#4f46e5;border:1px solid #c7d2fe;}
+.ev-probation{background:#0ea5e915;color:#0284c7;border:1px solid #bae6fd;}
+
+/* ── 가족 카드 ── */
+.fam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:16px;}
+.fam-card{border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;background:#fafbfc;}
+.fam-icon{font-size:20px;margin-bottom:6px;}
+.fam-rel{font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:2px;}
+.fam-name{font-size:14px;font-weight:700;color:#1e293b;margin-bottom:6px;}
+.fam-detail{font-size:11px;color:#475569;line-height:1.7;}
+.fam-tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;margin-top:5px;margin-right:3px;}
+.fam-tag-bday{background:#fef3c7;color:#b45309;}
+.fam-tag-anni{background:#fdf2f8;color:#9d174d;}
+.fam-tag-school{background:#eff6ff;color:#1d4ed8;}
+.fam-tag-health{background:#fef2f2;color:#b91c1c;}
+.fam-note{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:12px;color:#1d4ed8;margin-bottom:14px;line-height:1.6;}
+
+/* ── 면접 기록 ── */
+.iv-section{border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-bottom:12px;}
+.iv-hd{padding:11px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;}
+.iv-hd-l{font-size:13px;font-weight:700;color:#1e293b;}
+.iv-hd-r{font-size:11px;color:#94a3b8;}
+.iv-body{padding:12px 16px;}
+.iv-meta{display:flex;gap:12px;margin-bottom:8px;flex-wrap:wrap;font-size:11px;color:#475569;}
+.iv-meta strong{color:#1e293b;font-weight:600;}
+.iv-chip{display:inline-flex;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:700;margin-bottom:8px;}
+.iv-pass{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;}
+.iv-hold{background:#fffbeb;color:#d97706;border:1px solid #fde68a;}
+.iv-fail{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+.iv-comment{font-size:12px;color:#475569;background:#f8fafc;border-radius:6px;padding:9px 12px;line-height:1.7;border-left:3px solid #2563eb;}
+.greeting-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#2563eb;color:#fff;border-radius:7px;font-size:12px;font-weight:600;text-decoration:none;margin-top:12px;cursor:pointer;}
+
+/* ── 수습 평가 ── */
+.prob-sec-title{font-size:12px;font-weight:700;color:#2563eb;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #eff6ff;letter-spacing:.04em;}
+.prob-box{border:1px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:10px;background:#fafbfc;}
+.prob-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.prob-title{font-size:13px;font-weight:700;color:#1e293b;}
+.prob-date{font-size:11px;color:#94a3b8;}
+.prob-who{font-size:11px;color:#475569;margin-bottom:8px;}
+.prob-item{margin-bottom:8px;}
+.prob-lbl{font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:3px;}
+.prob-txt{font-size:12px;color:#475569;line-height:1.6;}
+.prob-result{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:4px;font-size:11px;font-weight:700;margin-top:6px;}
+.res-pass{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;}
+.res-extend{background:#fffbeb;color:#d97706;border:1px solid #fde68a;}
+.res-end{background:#fef2f2;color:#dc2626;border:1px solid #fecaca;}
+.rater-row{margin-bottom:8px;padding:8px 12px;background:#f8fafc;border-radius:6px;}
+.rater-name{font-size:11px;font-weight:700;color:#1e293b;margin-bottom:3px;}
+.rater-grade{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:#eff6ff;color:#2563eb;margin-left:6px;}
+.rater-comment{font-size:12px;color:#475569;}
+
+/* ── 평가이력 6항목 ── */
+.eval-grid-v3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 12px;}
+.eval-card-v3{border:1px solid #e2e8f0;border-radius:8px;padding:10px;text-align:center;}
+.eval-card-v3.main{border-color:#c7d2fe;background:#f5f3ff;}
+.eval-lbl-v3{font-size:10px;color:#94a3b8;margin-bottom:4px;font-weight:600;}
+.eval-grade-v3{font-size:14px;font-weight:700;}
+.eval-na{color:#cbd5e1;}
+.eval-new{font-size:9px;color:#22c55e;margin-left:3px;}
+.eval-comment-v3{font-size:12px;color:#475569;padding:8px 12px;background:#f8fafc;border-radius:6px;line-height:1.7;margin-bottom:4px;}
+
+/* ── 특별보수 배지 ── */
+.bonus-chip{display:inline-flex;align-items:center;gap:4px;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;}
 </style>
 </head>
 <body>
@@ -475,21 +545,26 @@ td.yel{color:var(--yellow);}
         <button class="ph-close" onclick="closeProfile()">✕</button>
       </div>
       <div class="ph-meta" id="ph-meta"></div>
+      <div class="ev-badges" id="ph-events"></div>
     </div>
     <div id="prof-tabs">
-      <button class="prof-tab active" data-ptab="basic"   onclick="switchProfTab('basic')">📋 기본 정보</button>
-      <button class="prof-tab"        data-ptab="salary"  onclick="switchProfTab('salary')">💰 연봉 · 계약</button>
-      <button class="prof-tab"        data-ptab="history" onclick="switchProfTab('history')">📜 발령 이력</button>
-      <button class="prof-tab"        data-ptab="eval"    onclick="switchProfTab('eval')">⭐ 성과 평가</button>
-      <button class="prof-tab"        data-ptab="ceo"     onclick="switchProfTab('ceo')">🔴 CEO Note</button>
+      <button class="prof-tab active" data-ptab="basic"      onclick="switchProfTab('basic')">📋 기본 정보</button>
+      <button class="prof-tab"        data-ptab="family"     onclick="switchProfTab('family')">👨‍👩‍👧 가족사항</button>
+      <button class="prof-tab"        data-ptab="interview"  onclick="switchProfTab('interview')">📄 면접 기록</button>
+      <button class="prof-tab"        data-ptab="probation"  onclick="switchProfTab('probation')">💬 수습 평가</button>
+      <button class="prof-tab"        data-ptab="history"    onclick="switchProfTab('history')">📜 발령 이력</button>
+      <button class="prof-tab"        data-ptab="salary"     onclick="switchProfTab('salary')">💰 연봉 · 계약</button>
+      <button class="prof-tab"        data-ptab="eval"       onclick="switchProfTab('eval')">⭐ 평가 이력</button>
     </div>
     <div id="prof-body">
       <div class="prof-loading" id="prof-loading"><div class="spin"></div><span>인사 정보 불러오는 중...</span></div>
-      <div class="prof-panel" id="ptab-basic"></div>
-      <div class="prof-panel" id="ptab-salary"></div>
+      <div class="prof-panel active" id="ptab-basic"></div>
+      <div class="prof-panel" id="ptab-family"></div>
+      <div class="prof-panel" id="ptab-interview"></div>
+      <div class="prof-panel" id="ptab-probation"></div>
       <div class="prof-panel" id="ptab-history"></div>
+      <div class="prof-panel" id="ptab-salary"></div>
       <div class="prof-panel" id="ptab-eval"></div>
-      <div class="prof-panel" id="ptab-ceo"></div>
     </div>
     <div class="prof-nav">
       <button class="prof-nav-btn" onclick="navProfile(-1)">← 이전 직원</button>
@@ -1439,6 +1514,34 @@ async function loadProfileData(empId){
     document.getElementById('ptab-basic').classList.add('active');
   }
 }
+
+// D-day 계산 (절대 날짜)
+function dDayCalc(dateStr){
+  if(!dateStr) return null;
+  var d=new Date(dateStr.replace(/\./g,'-'));
+  if(isNaN(d)) return null;
+  var today=new Date(); today.setHours(0,0,0,0);
+  return Math.ceil((d-today)/(1000*60*60*24));
+}
+// 수습 종료일 계산 (입사일 +3개월)
+function calcProbEnd(joinDate){
+  if(!joinDate) return '—';
+  var d=new Date(joinDate.replace(/\./g,'-'));
+  if(isNaN(d)) return '—';
+  d.setMonth(d.getMonth()+3);
+  return d.getFullYear()+'.'+(d.getMonth()+1+'').padStart(2,'0')+'.'+(''+d.getDate()).padStart(2,'0');
+}
+// 총 경력 계산 (입사 전 경력 + 재직기간)
+function calcTotalV3(prevY, prevM, joinDate){
+  var py=parseInt(prevY)||0, pm=parseInt(prevM)||0;
+  if(!joinDate) return py+'년 '+pm+'개월';
+  var d=new Date(joinDate.replace(/\./g,'-'));
+  if(isNaN(d)) return py+'년 '+pm+'개월';
+  var now=new Date();
+  var tenMo=Math.floor((now-d)/(1000*60*60*24*30.44));
+  var tot=(py*12+pm)+tenMo;
+  return Math.floor(tot/12)+'년 '+(tot%12)+'개월';
+}
 function showProfLoading(show){
   document.getElementById('prof-loading').style.display=show?'flex':'none';
   ['basic','salary','history','eval','ceo'].forEach(id=>{
@@ -1453,191 +1556,293 @@ function switchProfTab(tab){
 
 function renderProfile(data){
   showProfLoading(false);
-  const m=data.master||{}, o=data.orgInfo||{};
-  const history=data.history||[], salary=data.salary||[], evals=data.evals||[], ceoNotes=data.ceoNotes||[];
-  const nick=o.닉네임||m.닉네임||'', fullName=m.한국이름||o.성명||'';
-  const dispName=nick?nick+' '+fullName:fullName;
-  const status=o.재직여부||'재직';
-  const joinDate=o.입사일||m.입사일||'';
-  const latestSal=salary[0]||{};
-  const annSal=latestSal.연봉총액||(o.월고정만?o.월고정만*12:0);
-  const moSal=latestSal.월고정||o.월고정만||0;
-  const expDate=m.계약만료일||latestSal.계약만료일||'';
-  const d30=checkD30(expDate);
-  const visaD30=(m.비자유형&&m.비자만료)?checkD30(m.비자만료,'비자 만료'):'';
+  var b = data.basic || {};
+  var family    = data.family    || [];
+  var interview = data.interview || [];
+  var probInt   = data.probInt   || [];
+  var probEval  = data.probEval  || [];
+  var history   = data.history   || [];
+  var salary    = data.salary    || [];
+  var evals     = data.evals     || [];
+  var events    = data.events    || [];
 
-  document.getElementById('ph-avatar').textContent=(nick||fullName||'?')[0];
-  document.getElementById('ph-name').innerHTML=dispName
-    +' <span class="ph-badge '+status+'">'+status+'</span>'
-    +(d30||'')+(visaD30||'');
-  document.getElementById('ph-sub').innerHTML=[
-    o.직책?'<span>'+o.직책+'</span>':'',
-    o.본부?'<span>'+o.본부+(o.본부부서&&o.본부부서!==o.본부?' · '+o.본부부서:'')+(o.팀?' · '+o.팀:'')+'</span>':'',
-    o.직급?'<span>'+o.직급+'</span>':'',
-    m.고용형태?'<span>'+m.고용형태+'</span>':'',
+  var nick     = b.nick     || '';
+  var korName  = b.korName  || '';
+  var dispName = nick ? nick + ' ' + korName : korName;
+  var status   = b.status   || '재직';
+  var joinDate = b.joinDate || '';
+  var latestSal = salary[0] || {};
+
+  // 연봉 (조직도 기준, 계약이력 있으면 최신 계약 우선)
+  var annSalRaw = latestSal['연봉총액_만원'] || b.annualSal || '';
+  var moSalRaw  = latestSal['월고정_만원']   || b.monthlySal || '';
+  var annSal    = parseFloat(String(annSalRaw).replace(/,/g,'')) || 0;
+  var moSal     = parseFloat(String(moSalRaw).replace(/,/g,''))  || 0;
+  var expDate   = latestSal['계약만료일'] || '';
+
+  // 헤더 렌더
+  var avEl = document.getElementById('ph-avatar');
+  if (b.photoUrl) {
+    avEl.innerHTML = '<img src="'+b.photoUrl+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.textContent=\''+(nick||korName||'?')[0]+'\'">';
+  } else {
+    avEl.textContent = (nick || korName || '?')[0];
+    avEl.style.background = 'linear-gradient(135deg,#6366f1,#8b5cf6)';
+  }
+  document.getElementById('ph-name').innerHTML = dispName
+    + ' <span class="ph-badge '+status+'">'+status+'</span>';
+  document.getElementById('ph-sub').innerHTML = [
+    b.position ? '<span>'+b.position+'</span>' : '',
+    b.dept     ? '<span>'+b.dept+(b.subDept&&b.subDept!==b.dept?' · '+b.subDept:'')+(b.team?' · '+b.team:'')+'</span>' : '',
+    b.level    ? '<span>'+b.level+'</span>' : '',
   ].filter(Boolean).join('');
-  var metaStr='';
-  if(joinDate) metaStr+='입사 '+joinDate+' · 재직 '+calcTenure(joinDate);
-  if(m.비자유형) metaStr+=' · 비자: '+m.비자유형+(m.비자만료?' ('+m.비자만료+'까지)':'');
-  document.getElementById('ph-meta').innerHTML=metaStr;
-  document.getElementById('prof-nav-meta').textContent=
+  var metaStr = joinDate ? '입사 '+joinDate+' · 재직 '+calcTenure(joinDate) : '';
+  if (b.visaType) metaStr += ' · 비자: '+b.visaType+(b.visaExpire?' ('+b.visaExpire+'까지)':'');
+  document.getElementById('ph-meta').textContent = metaStr;
+  document.getElementById('prof-nav-meta').textContent =
     '사번 '+data.empId+' · '+(profState.idx>=0?profState.idx+1:'—')+' / '+profState.empList.length;
 
-  // ── 기본 정보 탭 ──
-  var salRaiseHtml='';
-  if(latestSal.인상률){
-    var rDown=parseFloat(latestSal.인상률)<0?' down':'';
-    salRaiseHtml='<div class="sal-raise'+rDown+'">↑ 평균 인상률 '+latestSal.인상률+'%</div>';
+  // 이벤트 배지
+  var evHtml = '';
+  events.forEach(function(ev){
+    var t = ev['알림유형']||'', badge = ev['배지텍스트']||'', d = parseInt(ev['D_day'])||0;
+    var cls = t.includes('비자')?'ev-visa':t.includes('생일')?'ev-bday':t.includes('기념')?'ev-anni':t.includes('연봉')?'ev-salary':'ev-probation';
+    evHtml += '<span class="ev-badge '+cls+'">'+badge+'</span>';
+  });
+  // 비자 D-day (이벤트시트 없어도 표시)
+  if (!evHtml && b.visaExpire) {
+    var vd = dDayCalc(b.visaExpire);
+    if (vd !== null) evHtml += '<span class="ev-badge ev-visa">⚠️ 비자만료 D-'+vd+'</span>';
   }
-  var recentHistHtml='';
-  if(history.length){
-    recentHistHtml='<div class="ps-title" style="margin-top:4px;">▎ 최근 발령이력</div>';
-    history.slice(0,2).forEach(function(h){
-      var before=[h.발령전직책,h.발령전부서].filter(Boolean).join(' · ');
-      var after=[h.발령후직책,h.발령후부서].filter(Boolean).join(' · ');
-      var arrow=after?(' → '+after):'';
-      var sinceStr=joinDate?' · 입사 후 '+diffStr(joinDate,h.발령일):'';
-      recentHistHtml+='<div class="tl-item">'
-        +'<div class="tl-dot" style="background:'+tlColor(h.발령유형)+'22;">'+tlIcon(h.발령유형)+'</div>'
-        +'<div class="tl-body">'
-        +'<div class="tl-type">'+h.발령유형+'</div>'
-        +'<div class="tl-detail">'+(before||'')+arrow+'</div>'
-        +'<div class="tl-date">'+h.발령일+sinceStr+'</div>'
-        +'</div></div>';
-    });
-  }
-  var visaRow='';
-  if(m.비자유형){
-    var visaVal=m.비자유형+(m.비자만료?' ('+m.비자만료+')':'');
-    var visaCls=checkD30raw(m.비자만료)?'red':'';
-    visaRow=psRow('비자유형',visaVal,visaCls);
-  }
-  var marriageVal='—';
-  if(m.결혼여부) marriageVal=m.결혼여부+(m.결혼일?' ('+m.결혼일+')':'');
-  var leaveRow='';
-  if(m.육아휴직&&m.육아휴직!=='없음'){
-    var leaveVal=m.육아휴직+(m.복직예정일?' → 복직 '+m.복직예정일:'');
-    leaveRow=psRow('휴직 현황',leaveVal,'red');
-  }
-  var stockVal='미부여';
-  if(m.스톡옵션){
-    stockVal=m.스톡옵션+(m.스톡옵션수량?' ('+m.스톡옵션수량+'주)':'');
-  }
+  document.getElementById('ph-events').innerHTML = evHtml;
 
-  document.getElementById('ptab-basic').innerHTML=
+  // ── 기본 정보 탭 ──
+  var salRaiseHtml = latestSal['인상률']
+    ? '<div class="sal-raise">↑ '+latestSal['인상률']+'</div>' : '';
+  var marriageVal = b.marriageStatus || '—';
+  if (b.weddingDate) marriageVal += ' ('+b.weddingDate+')';
+  var visaRow = b.visaType
+    ? psRow('비자유형', b.visaType+(b.visaExpire?' ('+b.visaExpire+')':''), checkD30raw(b.visaExpire)?'red':'') : '';
+  var prevCareer = (parseInt(b.prevCareerY)||0)+'년 '+(parseInt(b.prevCareerM)||0)+'개월';
+  var totalCareer = calcTotalV3(b.prevCareerY, b.prevCareerM, joinDate);
+
+  document.getElementById('ptab-basic').innerHTML =
     '<div class="sal-box">'
     +'<div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">연봉 현황</div>'
     +'<div class="sal-amount">'+(annSal?annSal.toLocaleString()+'만원':'—')+'</div>'
-    +'<div class="sal-sub">월 고정 '+(moSal?moSal.toLocaleString()+'만원':'—')+(latestSal.계약만료일?' · 계약 만료 '+latestSal.계약만료일:'')+'</div>'
+    +'<div class="sal-sub">월 고정 '+(moSal?moSal.toLocaleString()+'만원':'—')+(expDate?' · 갱신 '+expDate:'')+'</div>'
     +salRaiseHtml+'</div>'
     +'<div class="ps-grid"><div>'
     +'<div class="ps-title">▎ 소속 · 직책</div>'
-    +psRow('본부/부서',(o.본부||'—')+(o.본부부서&&o.본부부서!==o.본부?' / '+o.본부부서:''))
-    +psRow('팀',o.팀||'—')+psRow('직책',o.직책||'—')
-    +psRow('직무',m.직무||'—')+psRow('Job-Level',o.직급||'—','accent')
-    +psRow('고용형태',m.고용형태||'—')
+    +psRow('본부/부서', (b.dept||'—')+(b.subDept&&b.subDept!==b.dept?' / '+b.subDept:''))
+    +psRow('팀', b.team||'—')
+    +psRow('직책', b.position||'—')
+    +psRow('직무', b.jobDesc||'—')
+    +psRow('Job-Level', b.level||'—', 'accent')
     +'</div><div>'
     +'<div class="ps-title">▎ 인적사항</div>'
-    +psRow('생년월일',m.생년월일?m.생년월일+calcAge(m.생년월일):'—')
-    +psRow('성별',m.성별||'—')
-    +psRow('결혼여부',marriageVal)
-    +psRow('최종학력',[m.최종학력,m.전공].filter(Boolean).join(' ')||'—')
-    +psRow('국적',m.국적||'—')
-    +psRow('연락처',m.연락처||'—')
+    +psRow('생년월일', b.birthDate?(b.birthDate+calcAge(b.birthDate)):'—')
+    +psRow('성별', b.gender||'—')
+    +psRow('결혼여부', marriageVal)
+    +psRow('최종학력', [b.school,b.major].filter(Boolean).join(' ')||'—')
+    +psRow('국적', b.nationality||'—')
+    +psRow('연락처', b.contact||'—')
     +visaRow
     +'</div></div>'
     +'<div class="ps-title">▎ 입사 정보</div>'
     +'<div class="ps-grid"><div>'
-    +psRow('입사일',joinDate||'—','accent')
-    +psRow('재직기간',calcTenure(joinDate)||'—')
-    +psRow('입사 경로',m.입사경로||'—')
-    +psRow('입사 전 경력',m.입사전경력?m.입사전경력+'년':'—')
-    +psRow('총 경력',m.입사전경력&&joinDate?calcTotal(m.입사전경력,joinDate):'—')
+    +psRow('입사일', joinDate||'—', 'accent')
+    +psRow('재직기간', calcTenure(joinDate)||'—')
+    +psRow('입사 경로', b.hireRoute||'—')
+    +psRow('입사 전 경력', prevCareer)
+    +psRow('총 경력', totalCareer||'—')
     +'</div><div>'
-    +psRow('수습 종료일',m.수습종료일||'—')
-    +psRow('계약 만료일',expDate||'—',checkD30raw(expDate)?'red':'')
-    +psRow('스톡옵션',stockVal)
-    +leaveRow
-    +'</div></div>'
-    +recentHistHtml;
+    +psRow('수습 종료일', calcProbEnd(joinDate))
+    +psRow('계약 만료일', expDate||'—', checkD30raw(expDate)?'red':'')
+    +psRow('스톡옵션', b.stockOption||'미부여')
+    +'</div></div>';
+
+  // ── 가족사항 탭 ──
+  var famHtml = '';
+  if (b.memo) famHtml += '<div class="fam-note">📝 '+b.memo+'</div>';
+  famHtml += '<div class="ps-title">▎ 가족 구성원</div>';
+  if (family.length) {
+    famHtml += '<div class="fam-grid">';
+    family.forEach(function(fm){
+      var tags = '';
+      if (fm['생년월일']) tags += '<span class="fam-tag fam-tag-bday">생일 '+fm['생년월일'].slice(5)+'</span>';
+      if (fm['결혼기념일']) tags += '<span class="fam-tag fam-tag-anni">기념일 '+fm['결혼기념일'].slice(5)+'</span>';
+      if (fm['학교_직장']) tags += '<span class="fam-tag fam-tag-school">'+fm['학교_직장']+'</span>';
+      if (fm['건강특이사항']) tags += '<span class="fam-tag fam-tag-health">'+fm['건강특이사항']+'</span>';
+      famHtml += '<div class="fam-card">'
+        +'<div class="fam-icon">'+(fm['이모지']||'👤')+'</div>'
+        +'<div class="fam-rel">'+(fm['관계']||'')+'</div>'
+        +'<div class="fam-name">'+(fm['이름']||'')+'</div>'
+        +'<div class="fam-detail">'
+        +(fm['생년월일']?'생년월일: '+fm['생년월일']+'<br>':'')
+        +(fm['결혼기념일']?'결혼기념일: '+fm['결혼기념일']+'<br>':'')
+        +(fm['거주지']?'거주지: '+fm['거주지']+'<br>':'')
+        +'</div>'
+        +(tags?'<div style="margin-top:4px;">'+tags+'</div>':'')
+        +(fm['메모']?'<div style="font-size:11px;color:#64748b;margin-top:6px;">'+fm['메모']+'</div>':'')
+        +'</div>';
+    });
+    famHtml += '</div>';
+  } else {
+    famHtml += '<div class="prof-loading" style="padding:30px;">가족사항이 등록되어 있지 않습니다.</div>';
+  }
+  document.getElementById('ptab-family').innerHTML = famHtml;
+
+  // ── 면접 기록 탭 ──
+  var ivHtml = '<div class="ps-title">▎ 채용 면접 기록</div>';
+  var greetingUrl = '';
+  if (interview.length) {
+    interview.forEach(function(iv){
+      if (iv['그리팅URL']) greetingUrl = iv['그리팅URL'];
+      var result = iv['결과']||'';
+      var chipCls = result==='통과'?'iv-pass':result==='보류'?'iv-hold':'iv-fail';
+      var chipLbl = result==='통과'?'통과 ✓':result==='보류'?'보류':result||'—';
+      ivHtml += '<div class="iv-section">'
+        +'<div class="iv-hd"><div class="iv-hd-l">'+(iv['면접단계']||'')+'</div><div class="iv-hd-r">'+(iv['면접일']||'')+'</div></div>'
+        +'<div class="iv-body">'
+        +'<div class="iv-meta"><span>면접관: <strong>'+(iv['면접관']||'—')+'</strong></span>'
+        +(iv['등급_점수']?'<span>등급: <strong>'+iv['등급_점수']+'</strong></span>':'')
+        +'</div>'
+        +'<span class="iv-chip '+chipCls+'">'+chipLbl+'</span>'
+        +(iv['면접코멘트']?'<div class="iv-comment">'+iv['면접코멘트']+'</div>':'')
+        +'</div></div>';
+    });
+    if (greetingUrl) ivHtml += '<a class="greeting-btn" href="'+greetingUrl+'" target="_blank">🔗 그리팅 원본 기록 보기</a>';
+  } else {
+    ivHtml += '<div class="prof-loading" style="padding:30px;">면접 기록이 없습니다.</div>';
+  }
+  document.getElementById('ptab-interview').innerHTML = ivHtml;
+
+  // ── 수습 평가 탭 ──
+  var pbHtml = '<div class="prob-sec-title">▎ 수습 기간 면담 기록</div>';
+  if (probInt.length) {
+    probInt.forEach(function(p){
+      var res = p['결과']||'';
+      var resCls = res.includes('완료')||res.includes('통과')?'res-pass':res.includes('연장')?'res-extend':'res-end';
+      var since = joinDate&&p['면담일'] ? ' · 입사 후 '+diffStr(joinDate,p['면담일']) : '';
+      pbHtml += '<div class="prob-box">'
+        +'<div class="prob-hd"><div class="prob-title">'+(p['면담차수']||'')+'차 면담</div><div class="prob-date">'+(p['면담일']||'')+since+'</div></div>'
+        +'<div class="prob-who">면담자: '+(p['면담자']||'—')+'</div>'
+        +(p['면담내용']?'<div class="prob-item"><div class="prob-lbl">면담 내용</div><div class="prob-txt">'+p['면담내용']+'</div></div>':'')
+        +(p['특이사항_우려점']&&p['특이사항_우려점']!=='없음'?'<div class="prob-item"><div class="prob-lbl">특이사항</div><div class="prob-txt">'+p['특이사항_우려점']+'</div></div>':'')
+        +'<span class="prob-result '+resCls+'">'+res+'</span></div>';
+    });
+  } else {
+    pbHtml += '<div class="prof-loading" style="padding:20px;">면담 기록이 없습니다.</div>';
+  }
+  pbHtml += '<div class="prob-sec-title" style="margin-top:16px;">▎ 수습 평가 기록</div>';
+  if (probEval.length) {
+    probEval.forEach(function(p){
+      var res = p['최종결과']||'';
+      var resCls = res.includes('통과')?'res-pass':res.includes('연장')?'res-extend':'res-end';
+      pbHtml += '<div class="prob-box">'
+        +'<div class="prob-hd"><div class="prob-title">'+(p['평가차수']||'')+'차 평가</div><div class="prob-date">'+(p['평가일']||'')+'</div></div>';
+      // 평가자 1~3
+      [1,2,3].forEach(function(n){
+        var rName = p['평가자'+n]||'';
+        var rGrade = p['평가자'+n+'_등급']||'';
+        var rComment = p['평가자'+n+'_의견']||'';
+        if (!rName) return;
+        pbHtml += '<div class="rater-row">'
+          +'<div class="rater-name">평가자 '+n+' — '+rName+'<span class="rater-grade">'+rGrade+'</span></div>'
+          +(rComment?'<div class="rater-comment">'+rComment+'</div>':'')
+          +'</div>';
+      });
+      if (p['종합의견']) pbHtml += '<div class="prob-item"><div class="prob-lbl">종합 의견</div><div class="prob-txt">'+p['종합의견']+'</div></div>';
+      pbHtml += '<span class="prob-result '+resCls+'">'+res+'</span></div>';
+    });
+  } else {
+    pbHtml += '<div class="prof-loading" style="padding:20px;">평가 기록이 없습니다.</div>';
+  }
+  document.getElementById('ptab-probation').innerHTML = pbHtml;
+
+  // ── 발령 이력 탭 ──
+  var hHtml = '<div class="ps-title">▎ 발령 이력</div>';
+  if (history.length) {
+    history.forEach(function(h){
+      var before = [h['변경전_직책'],h['변경전_소속']].filter(Boolean).join(' · ');
+      var after  = [h['변경후_직책'],h['변경후_소속']].filter(Boolean).join(' · ');
+      var since  = joinDate&&h['발령일'] ? ' · 입사 후 '+diffStr(joinDate,h['발령일']) : '';
+      hHtml += '<div class="tl-item">'
+        +'<div class="tl-dot" style="background:'+tlColor(h['발령유형'])+'22;">'+tlIcon(h['발령유형'])+'</div>'
+        +'<div class="tl-body">'
+        +'<div class="tl-type">'+(h['발령유형']||'')+'</div>'
+        +'<div class="tl-detail">'+(before?before+' → ':'')+after+'</div>'
+        +'<div class="tl-date">'+(h['발령일']||'')+since+'</div>'
+        +(h['비고']?'<div class="tl-detail" style="color:#94a3b8;margin-top:2px;">'+h['비고']+'</div>':'')
+        +'</div></div>';
+    });
+  } else {
+    hHtml += '<div class="prof-loading" style="padding:30px;">발령이력이 없습니다.</div>';
+  }
+  document.getElementById('ptab-history').innerHTML = hHtml;
 
   // ── 연봉·계약 탭 ──
-  if(salary.length){
-    var sRows='';
+  if (salary.length) {
+    var sRows = '';
     salary.forEach(function(s){
-      var r=parseFloat(s.인상률);
-      var rc=isNaN(r)?'':(r>0?'raise-up':'raise-dn');
-      sRows+='<tr><td>'+s.계약일+'</td><td>'+s.계약유형+'</td>'
-        +'<td class="num">'+(s.연봉총액?s.연봉총액.toLocaleString()+'만':'—')+'</td>'
-        +'<td class="num">'+(s.월고정?s.월고정.toLocaleString()+'만':'—')+'</td>'
-        +'<td class="'+rc+'">'+(s.인상률?s.인상률+'%':'—')+'</td>'
-        +'<td>'+(s.계약만료일||'—')+'</td><td>'+(s.직책비||'—')+'</td></tr>';
+      var raise = s['인상률']||'—';
+      var rc = raise.startsWith('+') ? 'raise-up' : raise.startsWith('-') ? 'raise-dn' : '';
+      var annV = parseFloat(String(s['연봉총액_만원']||'').replace(/,/g,''))||0;
+      var moV  = parseFloat(String(s['월고정_만원']||'').replace(/,/g,''))||0;
+      var bonusHtml = '—';
+      if (s['특별보수유형'] && s['특별보수유형']!=='없음' && s['특별보수유형']) {
+        var bAmt = s['특별보수금액_만원']?s['특별보수금액_만원']+'만':'';
+        bonusHtml = '<span class="bonus-chip">'+s['특별보수유형']+(bAmt?' '+bAmt:'')+'</span>'
+          +(s['특별보수지급일']?'<div style="font-size:10px;color:#94a3b8;margin-top:2px;">'+s['특별보수지급일']+(s['특별보수조건']?' · '+s['특별보수조건']:'')+'</div>':'');
+      }
+      sRows += '<tr>'
+        +'<td>'+(s['계약일']||'')+'</td><td>'+(s['계약유형']||'')+'</td>'
+        +'<td class="num">'+(annV?annV.toLocaleString()+'만':'—')+'</td>'
+        +'<td class="num">'+(moV?moV.toLocaleString()+'만':'—')+'</td>'
+        +'<td class="'+rc+'">'+raise+'</td>'
+        +'<td>'+(s['계약만료일']||'—')+'</td>'
+        +'<td>'+bonusHtml+'</td>'
+        +'</tr>';
     });
-    document.getElementById('ptab-salary').innerHTML=
+    document.getElementById('ptab-salary').innerHTML =
       '<div class="ps-title">▎ 연봉 계약 이력</div>'
       +'<table class="sal-hist-table"><thead><tr>'
       +'<th>계약일</th><th>유형</th><th style="text-align:right;">연봉총액</th>'
-      +'<th style="text-align:right;">월고정</th><th>인상률</th><th>만료일</th><th>직책비</th>'
+      +'<th style="text-align:right;">월고정</th><th>인상률</th><th>만료일</th><th>특별보수</th>'
       +'</tr></thead><tbody>'+sRows+'</tbody></table>';
   } else {
-    document.getElementById('ptab-salary').innerHTML='<div class="prof-loading">연봉 계약 데이터가 없습니다</div>';
+    document.getElementById('ptab-salary').innerHTML = '<div class="prof-loading">연봉 계약 데이터가 없습니다.</div>';
   }
 
-  // ── 발령이력 탭 ──
-  if(history.length){
-    var hHtml='<div class="ps-title">▎ 발령 이력</div>';
-    history.forEach(function(h){
-      var before=[h.발령전직책,h.발령전부서].filter(Boolean).join(' · ');
-      var after=[h.발령후직책,h.발령후부서].filter(Boolean).join(' · ');
-      var teamStr=h.발령후팀?' · '+h.발령후팀:'';
-      var sinceStr=joinDate?' · 입사 후 '+diffStr(joinDate,h.발령일):'';
-      hHtml+='<div class="tl-item">'
-        +'<div class="tl-dot" style="background:'+tlColor(h.발령유형)+'22;">'+tlIcon(h.발령유형)+'</div>'
-        +'<div class="tl-body">'
-        +'<div class="tl-type">'+h.발령유형+'</div>'
-        +'<div class="tl-detail">'+(before?before+' → ':'')+after+teamStr+'</div>'
-        +'<div class="tl-date">'+h.발령일+sinceStr+'</div>'
-        +(h.비고?'<div class="tl-detail" style="color:#94a3b8;margin-top:2px;">'+h.비고+'</div>':'')
-        +'</div></div>';
-    });
-    document.getElementById('ptab-history').innerHTML=hHtml;
-  } else {
-    document.getElementById('ptab-history').innerHTML='<div class="prof-loading">발령이력이 없습니다</div>';
-  }
-
-  // ── 평가이력 탭 ──
-  if(evals.length){
-    var eHtml='';
-    evals.forEach(function(ev,ei){
-      if(ei>0) eHtml+='<hr style="border:none;border-top:1px solid #e2e8f0;margin:4px 0 16px;">';
-      eHtml+='<div style="margin-bottom:20px;">'
-        +'<div class="eval-period">'+ev.평가기간+' '+(ev.평가회차||'')+'</div>'
-        +'<div class="eval-reviewers">1차: '+(ev['1차평가자']||'—')+' · 2차: '+(ev['2차평가자']||'—')+'</div>'
-        +'<div class="eval-grid" style="margin-top:8px;">'
-        +evalCard('종합등급',ev.종합등급)+evalCard('핵심성과',ev.핵심성과)
-        +evalCard('프로성과',ev.프로성과)+evalCard('직업성과',ev.직업성과)
-        +'</div>'
-        +(ev.코멘트?'<div style="font-size:12px;color:#475569;padding:8px 12px;background:#f8fafc;border-radius:6px;line-height:1.7;">'+ev.코멘트+'</div>':'')
-        +'</div>';
-    });
-    document.getElementById('ptab-eval').innerHTML=eHtml;
-  } else {
-    document.getElementById('ptab-eval').innerHTML='<div class="prof-loading">평가 이력이 없습니다</div>';
-  }
-
-  // ── CEO Note 탭 ──
-  var cHtml='<div class="ps-title">▎ CEO Note</div>';
-  if(ceoNotes.length){
-    ceoNotes.forEach(function(n){
-      cHtml+='<div class="ceo-note">'
-        +'<div class="ceo-note-meta">'+n.작성일+' · '+(n.작성자||'CEO')+'</div>'
-        +'<div class="ceo-note-body">'+n.내용+'</div>'
-        +'</div>';
+  // ── 평가 이력 탭 (6항목) ──
+  var GRADE_ITEMS = ['종합등급','혁신성과','표준성과','AI성과','협업','학습_성장_변화수용'];
+  var GRADE_LABELS = {'종합등급':'종합','혁신성과':'혁신성과','표준성과':'표준성과','AI성과':'AI성과','협업':'협업','학습_성장_변화수용':'학습/성장'};
+  var gmap = {Outstanding:'grade-O',Superior:'grade-S',Adequate:'grade-A',Below:'grade-B'};
+  var eHtml = '';
+  if (evals.length) {
+    evals.forEach(function(ev, ei){
+      if (ei>0) eHtml += '<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0 16px;">';
+      eHtml += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">'
+        +'<div style="font-size:12px;font-weight:700;color:#1e293b;">'+(ev['평가기간']||'')+'</div>'
+        +'<div style="font-size:11px;color:#94a3b8;">1차: '+(ev['1차평가자']||'—')+' · 2차: '+(ev['2차평가자']||'—')+'</div></div>';
+      eHtml += '<div class="eval-grid-v3">';
+      GRADE_ITEMS.forEach(function(key, ki){
+        var val = ev[key]||'';
+        var isMain = ki===0;
+        var isNA = !val;
+        var gCls = isNA?'eval-na':(gmap[val]||'');
+        var newTag = key==='AI성과'?'<span class="eval-new">26년~</span>':'';
+        eHtml += '<div class="eval-card-v3'+(isMain?' main':'')+'">'
+          +'<div class="eval-lbl-v3">'+(GRADE_LABELS[key]||key)+newTag+'</div>'
+          +'<div class="eval-grade-v3 '+(isNA?'eval-na':gCls)+'">'+(isNA?'N/A':val)+'</div></div>';
+      });
+      eHtml += '</div>';
+      if (ev['총평_코멘트']) eHtml += '<div class="eval-comment-v3">'+ev['총평_코멘트']+'</div>';
     });
   } else {
-    cHtml+='<div class="ceo-note"><span style="font-size:13px;color:#94a3b8;font-style:italic;">— 아직 작성된 노트가 없습니다.</span></div>';
+    eHtml = '<div class="prof-loading" style="padding:30px;">평가 이력이 없습니다.</div>';
   }
-  document.getElementById('ptab-ceo').innerHTML=cHtml;
+  document.getElementById('ptab-eval').innerHTML = eHtml;
 
   switchProfTab('basic');
 }
