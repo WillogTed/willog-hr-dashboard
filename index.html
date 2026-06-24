@@ -1582,7 +1582,8 @@ function renderProfile(data){
 
   var nick     = b.nick     || '';
   var korName  = b.korName  || '';
-  var dispName = nick ? nick + ' ' + korName : korName;
+  // 닉네임(영문)과 한국이름 둘 다 있으면 "닉네임 한국이름", 하나만 있으면 그것만
+  var dispName = (nick && korName) ? nick + ' ' + korName : (korName || nick || '—');
   var status   = b.status   || '재직';
   var joinDate = normDateStr(b.joinDate || '');  // "WedMar06..." 등 깨진 형식 정규화
   var empType  = b.empType  || '';               // 고용형태 (정규직/수습/계약직)
@@ -1611,7 +1612,12 @@ function renderProfile(data){
   }
   document.getElementById('ph-name').innerHTML = dispName
     + ' <span class="ph-badge '+status+'">'+status+'</span>'
-    + (empType==='수습' ? ' <span class="ph-badge-probation">정규직(수습)</span>' : '');
+    + (empType==='수습'
+        ? ' <span class="ph-badge-probation">정규직(수습)</span>'
+          + (calcProbEnd(joinDate)!=='—'
+              ? ' <span class="d30-badge" style="font-size:10px;padding:2px 7px;">종료일 '+calcProbEnd(joinDate)+'</span>'
+              : '')
+        : '');
   document.getElementById('ph-sub').innerHTML = [
     b.position ? '<span>'+b.position+'</span>' : '',
     b.dept     ? '<span>'+b.dept+(b.subDept&&b.subDept!==b.dept?' · '+b.subDept:'')+(b.team?' · '+b.team:'')+'</span>' : '',
@@ -1695,7 +1701,7 @@ function renderProfile(data){
     +psRow('입사 전 경력', prevCareer)
     +psRow('총 경력', totalCareer||'—')
     +'</div><div>'
-    +psRow('수습 종료일', calcProbEnd(joinDate))
+    +(empType==='수습' ? psRow('수습 종료일', calcProbEnd(joinDate), checkD30raw(calcProbEnd(joinDate))?'red':'accent') : '')
     +psRow('계약 만료일', expDate||'—', checkD30raw(expDate)?'red':'')
     +psRow('스톡옵션', b.stockOption||'미부여')
     +'</div></div>';
