@@ -1537,8 +1537,9 @@ function dDayCalc(dateStr){
   var today=new Date(); today.setHours(0,0,0,0);
   return Math.ceil((d-today)/(1000*60*60*24));
 }
-// 수습 종료일 계산 (입사일 +3개월 -1일)
-function calcProbEnd(joinDate){
+// 수습 종료일 계산 (수동 입력값 우선, 없으면 입사일 +3개월 -1일)
+function calcProbEnd(joinDate, probEndDate){
+  if(probEndDate) return probEndDate;  // 시트에 직접 입력된 값 우선
   if(!joinDate) return '—';
   var d=new Date(joinDate.replace(/\./g,'-'));
   if(isNaN(d)) return '—';
@@ -1547,8 +1548,8 @@ function calcProbEnd(joinDate){
   return d.getFullYear()+'.'+(String(d.getMonth()+1).padStart(2,'0'))+'.'+String(d.getDate()).padStart(2,'0');
 }
 // 수습 종료일까지 남은 일수 (D-day)
-function calcProbDday(joinDate){
-  var end=calcProbEnd(joinDate);
+function calcProbDday(joinDate, probEndDate){
+  var end=calcProbEnd(joinDate, probEndDate);
   if(end==='—') return null;
   var d=new Date(end.replace(/\./g,'-'));
   if(isNaN(d)) return null;
@@ -1615,7 +1616,7 @@ function renderProfile(data){
     + ' <span class="ph-badge '+status+'">'+status+'</span>'
     + (empType==='수습'
         ? (function(){
-            var dday = calcProbDday(joinDate);
+            var dday = calcProbDday(joinDate, b.probEndDate);
             var ddayStr = dday !== null ? (dday >= 0 ? ' D-'+dday : ' D+'+Math.abs(dday)) : '';
             return ' <span class="ph-badge-probation">수습</span>'
               + (ddayStr ? ' <span class="d30-badge" style="font-size:10px;padding:2px 7px;">수습 종료일'+ddayStr+'</span>' : '');
@@ -1705,8 +1706,8 @@ function renderProfile(data){
     +psRow('총 경력', totalCareer||'—')
     +'</div><div>'
     +(empType==='수습' ? (function(){
-        var probEnd = calcProbEnd(joinDate);
-        var dday = calcProbDday(joinDate);
+        var probEnd = calcProbEnd(joinDate, b.probEndDate);
+        var dday = calcProbDday(joinDate, b.probEndDate);
         var ddayStr = dday !== null ? (dday >= 0 ? ' (D-'+dday+')' : ' (D+'+Math.abs(dday)+')') : '';
         return psRow('수습 종료일', probEnd + ddayStr, dday !== null && dday <= 14 ? 'red' : 'accent');
       })() : '')
