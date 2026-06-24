@@ -220,6 +220,9 @@ td.yel{color:var(--yellow);}
 .ph-sub{font-size:12px;color:#94a3b8;margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;}
 .ph-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;}
 .ph-badge.재직{background:#22c55e22;color:#22c55e;}.ph-badge.휴직{background:#f59e0b22;color:#f59e0b;}.ph-badge.퇴직예정{background:#ef444422;color:#ef4444;}
+.ph-badge-probation{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:#f59e0b22;color:#d97706;border:1px solid #fde68a;margin-left:4px;}
+.sal-eval-row{display:flex;align-items:center;gap:4px;margin-top:8px;flex-wrap:wrap;}
+.sal-eval-chip{font-size:11px;color:#94a3b8;}
 .ph-meta{font-size:11px;color:#64748b;margin-top:8px;}
 .ph-close{position:absolute;top:14px;right:16px;width:28px;height:28px;border-radius:50%;border:1px solid #334155;background:transparent;color:#94a3b8;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
 .ph-close:hover{background:#334155;color:#fff;}
@@ -1446,23 +1449,34 @@ function parseDate(v){
   // Excel 시리얼 숫자 (예: 46117 = 2026-05-01)
   const n=parseFloat(v);
   if(!isNaN(n) && n>40000 && n<70000){
-    // UTC 기준 날짜 → 로컬 연/월/일 추출 후 로컬 Date 생성 (타임존 왜곡 방지)
     const utcMs=(n-25569)*86400*1000;
     const tmp=new Date(utcMs);
     return new Date(tmp.getUTCFullYear(), tmp.getUTCMonth(), tmp.getUTCDate());
   }
+  const sv=String(v).trim();
+  // JS Date.toString() 형식: "Wed Mar 06 2024 00:00:00 GMT+0900 (한국표준시)"
+  const jsDt=new Date(sv);
+  if(!isNaN(jsDt.getTime()) && sv.length>15){
+    return new Date(jsDt.getFullYear(), jsDt.getMonth(), jsDt.getDate());
+  }
   // 문자열 날짜: "2026.06.02", "2026-6-2", "2026년 6월 2일" 등
-  const s=String(v)
+  const s=sv
     .replace(/년\s*/g,'-').replace(/월\s*/g,'-').replace(/일\s*/g,'')
     .replace(/\./g,'-').replace(/\s+/g,'')
     .replace(/--+/g,'-').replace(/-$/,'').trim();
-  // "YYYY-M-D" → parts로 파싱해 로컬 Date 생성 (new Date("2026-6-2") 파싱 신뢰 안 함)
   const parts=s.split('-').map(Number);
   if(parts.length>=3 && parts[0]>2000 && parts[1]>=1 && parts[1]<=12 && parts[2]>=1){
     return new Date(parts[0], parts[1]-1, parts[2]);
   }
   const d=new Date(s);
   return isNaN(d)?null:d;
+}
+// 날짜 → "YYYY.MM.DD" 정규화 (인사카드 joinDate 등에 사용)
+function normDateStr(v){
+  if(!v) return '';
+  const d=parseDate(v);
+  if(!d||isNaN(d.getTime())) return String(v);
+  return d.getFullYear()+'.'+(String(d.getMonth()+1).padStart(2,'0'))+'.'+String(d.getDate()).padStart(2,'0');
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1570,7 +1584,8 @@ function renderProfile(data){
   var korName  = b.korName  || '';
   var dispName = nick ? nick + ' ' + korName : korName;
   var status   = b.status   || '재직';
-  var joinDate = b.joinDate || '';
+  var joinDate = normDateStr(b.joinDate || '');  // "WedMar06..." 등 깨진 형식 정규화
+  var empType  = b.empType  || '';               // 고용형태 (정규직/수습/계약직)
   var latestSal = salary[0] || {};
 
   // 연봉 (조직도 기준, 계약이력 있으면 최신 계약 우선)
@@ -1583,13 +1598,20 @@ function renderProfile(data){
   // 헤더 렌더
   var avEl = document.getElementById('ph-avatar');
   if (b.photoUrl) {
-    avEl.innerHTML = '<img src="'+b.photoUrl+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.textContent=\''+(nick||korName||'?')[0]+'\'">';
+    // 구글 드라이브 공유 URL → 직접 표시 가능한 URL로 변환
+    var photoSrc = b.photoUrl;
+    var driveMatch = photoSrc.match(/\/file\/d\/([^\/]+)/);
+    if (driveMatch) {
+      photoSrc = 'https://drive.google.com/thumbnail?id='+driveMatch[1]+'&sz=w200';
+    }
+    avEl.innerHTML = '<img src="'+photoSrc+'" crossorigin="anonymous" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.innerHTML=\''+(nick||korName||'?')[0]+'\';this.parentElement.style.background=\'linear-gradient(135deg,#6366f1,#8b5cf6)\';">';
   } else {
     avEl.textContent = (nick || korName || '?')[0];
     avEl.style.background = 'linear-gradient(135deg,#6366f1,#8b5cf6)';
   }
   document.getElementById('ph-name').innerHTML = dispName
-    + ' <span class="ph-badge '+status+'">'+status+'</span>';
+    + ' <span class="ph-badge '+status+'">'+status+'</span>'
+    + (empType==='수습' ? ' <span class="ph-badge-probation">정규직(수습)</span>' : '');
   document.getElementById('ph-sub').innerHTML = [
     b.position ? '<span>'+b.position+'</span>' : '',
     b.dept     ? '<span>'+b.dept+(b.subDept&&b.subDept!==b.dept?' · '+b.subDept:'')+(b.team?' · '+b.team:'')+'</span>' : '',
@@ -1618,6 +1640,20 @@ function renderProfile(data){
   // ── 기본 정보 탭 ──
   var salRaiseHtml = latestSal['인상률']
     ? '<div class="sal-raise">↑ '+latestSal['인상률']+'</div>' : '';
+  // 최근 2개 평가 등급 (종합등급)
+  var recentEvals = evals.slice(0,2);
+  var evalChipsHtml = '';
+  if (recentEvals.length) {
+    var gradeColor = {Outstanding:'#6366f1',Superior:'#2563eb',Adequate:'#16a34a',Below:'#d97706','':'#94a3b8'};
+    evalChipsHtml = '<div class="sal-eval-row">'
+      + recentEvals.map(function(ev){
+          var period = ev['평가기간']||'';
+          var grade  = ev['종합등급']||'—';
+          var col    = gradeColor[grade]||'#94a3b8';
+          return '<span class="sal-eval-chip" style="color:'+col+';">'+period+' <strong>'+grade+'</strong></span>';
+        }).join('<span style="color:#475569;margin:0 4px;">·</span>')
+      + '</div>';
+  }
   var marriageVal = b.marriageStatus || '—';
   if (b.weddingDate) marriageVal += ' ('+b.weddingDate+')';
   var visaRow = b.visaType
@@ -1630,7 +1666,9 @@ function renderProfile(data){
     +'<div style="font-size:11px;color:#94a3b8;margin-bottom:4px;">연봉 현황</div>'
     +'<div class="sal-amount">'+(annSal?annSal.toLocaleString()+'만원':'—')+'</div>'
     +'<div class="sal-sub">월 고정 '+(moSal?moSal.toLocaleString()+'만원':'—')+(expDate?' · 갱신 '+expDate:'')+'</div>'
-    +salRaiseHtml+'</div>'
+    +salRaiseHtml
+    +evalChipsHtml
+    +'</div>'
     +'<div class="ps-grid"><div>'
     +'<div class="ps-title">▎ 소속 · 직책</div>'
     +psRow('본부/부서', (b.dept||'—')+(b.subDept&&b.subDept!==b.dept?' / '+b.subDept:''))
@@ -1638,6 +1676,7 @@ function renderProfile(data){
     +psRow('직책', b.position||'—')
     +psRow('직무', b.jobDesc||'—')
     +psRow('Job-Level', b.level||'—', 'accent')
+    +(empType?psRow('고용형태', empType==='수습'?'정규직(수습)':empType, empType==='수습'?'red':empType==='계약직'?'accent':''):'')
     +'</div><div>'
     +'<div class="ps-title">▎ 인적사항</div>'
     +psRow('생년월일', b.birthDate?(b.birthDate+calcAge(b.birthDate)):'—')
