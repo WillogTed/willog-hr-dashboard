@@ -1762,7 +1762,7 @@ function renderProfile(data){
         +(iv['등급_점수']?'<span>등급: <strong>'+iv['등급_점수']+'</strong></span>':'')
         +'</div>'
         +'<span class="iv-chip '+chipCls+'">'+chipLbl+'</span>'
-        +(iv['면접코멘트']?'<div class="iv-comment">'+iv['면접코멘트']+'</div>':'')
+        +(iv['면접코멘트']?'<div class="iv-comment">'+nl2br(iv['면접코멘트'])+'</div>':'')
         +'</div></div>';
     });
     if (greetingUrl) ivHtml += '<a class="greeting-btn" href="'+greetingUrl+'" target="_blank">🔗 그리팅 원본 기록 보기</a>';
@@ -1781,8 +1781,8 @@ function renderProfile(data){
       pbHtml += '<div class="prob-box">'
         +'<div class="prob-hd"><div class="prob-title">'+(p['면담차수']||'')+'차 면담</div><div class="prob-date">'+(p['면담일']||'')+since+'</div></div>'
         +'<div class="prob-who">면담자: '+(p['면담자']||'—')+'</div>'
-        +(p['면담내용']?'<div class="prob-item"><div class="prob-lbl">면담 내용</div><div class="prob-txt">'+p['면담내용']+'</div></div>':'')
-        +(p['특이사항_우려점']&&p['특이사항_우려점']!=='없음'?'<div class="prob-item"><div class="prob-lbl">특이사항</div><div class="prob-txt">'+p['특이사항_우려점']+'</div></div>':'')
+        +(p['면담내용']?'<div class="prob-item"><div class="prob-lbl">면담 내용</div><div class="prob-txt">'+nl2br(p['면담내용'])+'</div></div>':'')
+        +(p['특이사항_우려점']&&p['특이사항_우려점']!=='없음'?'<div class="prob-item"><div class="prob-lbl">특이사항</div><div class="prob-txt">'+nl2br(p['특이사항_우려점'])+'</div></div>':'')
         +'<span class="prob-result '+resCls+'">'+res+'</span></div>';
     });
   } else {
@@ -1803,10 +1803,10 @@ function renderProfile(data){
         if (!rName) return;
         pbHtml += '<div class="rater-row">'
           +'<div class="rater-name">평가자 '+n+' — '+rName+'<span class="rater-grade">'+rGrade+'</span></div>'
-          +(rComment?'<div class="rater-comment">'+rComment+'</div>':'')
+          +(rComment?'<div class="rater-comment">'+nl2br(rComment)+'</div>':'')
           +'</div>';
       });
-      if (p['종합의견']) pbHtml += '<div class="prob-item"><div class="prob-lbl">종합 의견</div><div class="prob-txt">'+p['종합의견']+'</div></div>';
+      if (p['종합의견']) pbHtml += '<div class="prob-item"><div class="prob-lbl">종합 의견</div><div class="prob-txt">'+nl2br(p['종합의견'])+'</div></div>';
       pbHtml += '<span class="prob-result '+resCls+'">'+res+'</span></div>';
     });
   } else {
@@ -1903,6 +1903,7 @@ function renderProfile(data){
 
 
 function psRow(label,val,cls){cls=cls||'';return '<div class="ps-row"><span class="ps-label">'+label+'</span><span class="ps-val '+cls+'">'+(val||'—')+'</span></div>';}
+function nl2br(s){return s?String(s).replace(/\n/g,'<br>'):'';}  // 줄바꿈 → <br>
 function evalCard(label,grade){const g=grade||'—';const c=g==='Outstanding'?'grade-O':g==='Superior'?'grade-S':g==='Adequate'?'grade-A':g==='Below'?'grade-B':g==='Unacceptable'?'grade-C':'';return `<div class="eval-card"><div class="eval-label">${label}</div><div class="eval-grade ${c}">${g}</div></div>`;}
 function tlColor(t){if(!t)return '#94a3b8';if(t.includes('승격')||t.includes('승진'))return '#6366f1';if(t.includes('입사'))return '#22c55e';if(t.includes('부서')||t.includes('이동'))return '#f59e0b';if(t.includes('퇴직')||t.includes('퇴사'))return '#ef4444';if(t.includes('휴직'))return '#d97706';return '#2563eb';}
 function tlIcon(t){if(!t)return '📋';if(t.includes('승격')||t.includes('승진'))return '⬆️';if(t.includes('입사'))return '🏁';if(t.includes('부서')||t.includes('이동'))return '🔄';if(t.includes('퇴직')||t.includes('퇴사'))return '🚪';if(t.includes('휴직'))return '⏸️';if(t.includes('계약'))return '📄';return '📋';}
