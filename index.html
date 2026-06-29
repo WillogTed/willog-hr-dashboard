@@ -1903,7 +1903,7 @@ function renderProfile(data){
 
 
 function psRow(label,val,cls){cls=cls||'';return '<div class="ps-row"><span class="ps-label">'+label+'</span><span class="ps-val '+cls+'">'+(val||'—')+'</span></div>';}
-function nl2br(s){return s?String(s).replace(/\n/g,'<br>'):'';}  // 줄바꿈 → <br>
+function nl2br(s){return s?String(s).replace(/\r\n|\r|\n/g,'<br>'):'';}  // 줄바꿈 → <br>
 function evalCard(label,grade){const g=grade||'—';const c=g==='Outstanding'?'grade-O':g==='Superior'?'grade-S':g==='Adequate'?'grade-A':g==='Below'?'grade-B':g==='Unacceptable'?'grade-C':'';return `<div class="eval-card"><div class="eval-label">${label}</div><div class="eval-grade ${c}">${g}</div></div>`;}
 function tlColor(t){if(!t)return '#94a3b8';if(t.includes('승격')||t.includes('승진'))return '#6366f1';if(t.includes('입사'))return '#22c55e';if(t.includes('부서')||t.includes('이동'))return '#f59e0b';if(t.includes('퇴직')||t.includes('퇴사'))return '#ef4444';if(t.includes('휴직'))return '#d97706';return '#2563eb';}
 function tlIcon(t){if(!t)return '📋';if(t.includes('승격')||t.includes('승진'))return '⬆️';if(t.includes('입사'))return '🏁';if(t.includes('부서')||t.includes('이동'))return '🔄';if(t.includes('퇴직')||t.includes('퇴사'))return '🚪';if(t.includes('휴직'))return '⏸️';if(t.includes('계약'))return '📄';return '📋';}
