@@ -157,7 +157,7 @@ td.yel{color:var(--yellow);}
 /* ORG */
 .osec{border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
 .obuhdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-weight:700;font-size:13px;cursor:pointer;user-select:none;}
-.obuhdr .bust{font-size:11px;font-weight:400;color:var(--text3);}
+.obuhdr .bust{font-size:13px;font-weight:700;color:inherit;opacity:0.8;}
 .obubody{padding:12px 16px;}
 .odgrp{margin-bottom:14px;}
 .odgrp:last-child{margin-bottom:0;}
@@ -618,7 +618,7 @@ const BU_CLR = {
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
-let S = { emps:[], months:null, prevMonths:null, report:null, insights:null };
+let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{} };
 let G = { rev:150, ratio:60, pp:2, annualCostTarget:75 };
 
 // ═══════════════════════════════════════════════════
@@ -665,9 +665,10 @@ async function loadData() {
 
     S.emps       = (data.emps && data.emps.length) ? data.emps : [];
     S.months     = data.months     || null;
-    S.prevMonths = data.prevMonths || null;   // 전년 데이터
+    S.prevMonths = data.prevMonths || null;
     S.report     = data.report     || null;
     S.insights   = data.insights   || null;
+    S.deptBudgets= data.deptBudgets|| {};
 
     if (data.revenue !== undefined)         G.rev              = Number(data.revenue)         || 150;
     if (data.targetCostRatio !== undefined) G.ratio            = Number(data.targetCostRatio) || 60;
@@ -714,11 +715,23 @@ const empTeam  = e => e.팀     || '';
 const empPos   = e => e.직책   || '';
 const empLv    = e => e.직급   || '';
 const empSal   = e => e.월고정만 || 0;
+const empAnnSal= e => e.연봉총액만 || 0;  // 연봉총액(만원) 컬럼
 const empDate  = e => e.입사일 || '';
 const empSt    = e => e.재직여부 || '재직';
 const empSig   = e => e.status  || '';
 const empAsana = e => e.asanaUrl  || '';
 const empNote  = e => e.profileUrl || '';
+
+// 만원 → 천원 포맷 (예: 3499만 → 34,990천)
+function fmtChun(manwon) {
+  if (!manwon) return '—';
+  return (manwon * 10).toLocaleString() + '천원';
+}
+// 억원 포맷 (예: 34990만 → 3.5억)
+function fmtUk(manwon) {
+  if (!manwon) return '—';
+  return (manwon / 10000).toFixed(1) + '억';
+}
 
 // 직책 분류
 function leaderType(e) {
@@ -835,7 +848,17 @@ function renderOrg() {
     const members= buMap[bu];
     const clrKey = Object.keys(BU_CLR).find(k=>bu.includes(k))||'default';
     const clr    = BU_CLR[clrKey]||BU_CLR.default;
-    const totSal = members.reduce((s,e)=>s+empSal(e),0);
+    const totMoSal  = members.reduce((s,e)=>s+empSal(e),0);
+    const totAnnSal = members.reduce((s,e)=>s+empAnnSal(e),0);
+    const budgetKey = 'budget_'+bu;
+    const budgetMan = S.deptBudgets ? (S.deptBudgets[budgetKey]||0) : 0;
+    const budgetRatio = (budgetMan>0 && totAnnSal>0) ? (totAnnSal/budgetMan*100).toFixed(0) : null;
+
+    const bustParts = [
+      '<strong>'+members.length+'명</strong>',
+      totAnnSal>0 ? '연봉총액 <strong>'+fmtChun(totAnnSal)+'</strong>' : '',
+      budgetMan>0 ? '예산 '+fmtChun(budgetMan)+(budgetRatio?' (<span style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</span>)':'') : '',
+    ].filter(Boolean).join(' &nbsp;·&nbsp; ');
 
     // ── 부서 내 구조 ──
     // 부서(본부부서)별 그룹핑
@@ -904,7 +927,7 @@ function renderOrg() {
     return `<div class="osec" style="border-color:${clr.bd};">
       <div class="obuhdr" style="background:${clr.bg};color:${clr.tx};" onclick="toggleBU(this)">
         <span>${bu}</span>
-        <span class="bust">${members.length}명${totSal>0?' · 총 '+totSal.toLocaleString()+'만원/월':''}</span>
+        <span class="bust">${bustParts}</span>
       </div>
       <div class="obubody">${deptsHTML}</div>
     </div>`;
