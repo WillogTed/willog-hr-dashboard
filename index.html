@@ -391,7 +391,7 @@ td.yel{color:var(--yellow);}
         <div class="sal-toggle" id="sal-toggle" onclick="toggleSal()">
           <div class="fc gap8">
             <span class="cttl">💰 급여 Top 10</span>
-            <span style="font-size:11px;color:var(--text3);">월 고정 기준 (만원)</span>
+            <span style="font-size:11px;color:var(--text3);">월 고정 기준 (천원)</span>
           </div>
           <span class="sal-arrow" id="sal-arrow">▼</span>
         </div>
@@ -986,7 +986,7 @@ function mkOrgCard(e) {
     : '';
   const info   = [empPos(e), empLv(e)].filter(Boolean).join(' · ');
   const sal    = empSal(e);
-  const salHTML= sal?`<div class="ocsal">${sal.toLocaleString()}만원</div>`:'';
+  const salHTML= sal?`<div class="ocsal">${Math.round(sal*10).toLocaleString()}천원/월</div>`:'';
   const lt     = leaderType(e);
   const ldrCls = lt==='c'?'ldr-c':lt==='head'?'ldr-head':lt==='team'?'ldr-team':'';
 
@@ -1020,7 +1020,7 @@ function renderSalRank() {
       <div style="width:20px;font-size:11px;font-weight:700;color:var(--text3);">${i+1}</div>
       <div style="flex:1;font-size:12px;font-weight:600;color:var(--text);">${empName(e)}</div>
       <div style="font-size:11px;color:var(--text3);">${empBu(e)} · ${empPos(e)||empLv(e)||''}</div>
-      <div style="font-size:12px;font-weight:700;color:var(--accent);">${empSal(e).toLocaleString()}만</div>
+      <div style="font-size:12px;font-weight:700;color:var(--accent);">${Math.round(empSal(e)*10).toLocaleString()}천원</div>
     </div>`).join('');
 }
 
