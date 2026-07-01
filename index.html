@@ -334,6 +334,17 @@ td.yel{color:var(--yellow);}
 
 /* ── 특별보수 배지 ── */
 .bonus-chip{display:inline-flex;align-items:center;gap:4px;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;}
+
+/* ── 부서별 예산 막대그래프 ── */
+.budget-bar-wrap{padding:8px 16px 10px;border-bottom:1px solid var(--border);background:#fafbfc;}
+.budget-bar-track{height:16px;background:var(--border);border-radius:4px;overflow:visible;position:relative;margin-bottom:4px;}
+.budget-bar-fill{height:100%;border-radius:4px;transition:width .6s cubic-bezier(.4,0,.2,1);position:relative;}
+.budget-bar-fill.ok{background:linear-gradient(90deg,#22c55e,#16a34a);}
+.budget-bar-fill.over{background:linear-gradient(90deg,#f87171,#dc2626);}
+.budget-bar-fill.warn{background:linear-gradient(90deg,#fbbf24,#d97706);}
+.budget-bar-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text2);}
+.budget-bar-pct{font-weight:700;font-size:12px;}
+.budget-bar-pct.ok{color:#16a34a;}.budget-bar-pct.over{color:#dc2626;}.budget-bar-pct.warn{color:#d97706;}
 </style>
 </head>
 <body>
@@ -722,10 +733,10 @@ const empSig   = e => e.status  || '';
 const empAsana = e => e.asanaUrl  || '';
 const empNote  = e => e.profileUrl || '';
 
-// 만원 → 천원 포맷 (예: 3499만 → 34,990천)
+// 만원 → 천원 포맷 (예: 3499만 → 34,990천) - 반올림
 function fmtChun(manwon) {
   if (!manwon) return '—';
-  return (manwon * 10).toLocaleString() + '천원';
+  return Math.round(manwon * 10).toLocaleString() + '천원';
 }
 // 억원 포맷 (예: 34990만 → 3.5억)
 function fmtUk(manwon) {
@@ -860,6 +871,24 @@ function renderOrg() {
       budgetMan>0 ? '예산 '+fmtChun(budgetMan)+(budgetRatio?' (<span style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</span>)':'') : '',
     ].filter(Boolean).join(' &nbsp;·&nbsp; ');
 
+    // 예산 막대그래프
+    var budgetBarHtml = '';
+    if (budgetMan > 0 && totAnnSal > 0) {
+      const pct = Math.round(totAnnSal / budgetMan * 100);
+      const barW = Math.min(pct, 100);
+      const cls  = pct > 105 ? 'over' : pct > 95 ? 'warn' : 'ok';
+      const label= pct > 105 ? '▲ 예산 초과' : pct > 95 ? '▲ 예산 근접' : '✓ 예산 내';
+      budgetBarHtml = `<div class="budget-bar-wrap">
+        <div class="budget-bar-track">
+          <div class="budget-bar-fill ${cls}" style="width:${barW}%;"></div>
+        </div>
+        <div class="budget-bar-meta">
+          <span>${fmtChun(totAnnSal)} / 예산 ${fmtChun(budgetMan)}</span>
+          <span class="budget-bar-pct ${cls}">${pct}% ${label}</span>
+        </div>
+      </div>`;
+    }
+
     // ── 부서 내 구조 ──
     // 부서(본부부서)별 그룹핑
     const deptMap = {};
@@ -929,6 +958,7 @@ function renderOrg() {
         <span>${bu}</span>
         <span class="bust">${bustParts}</span>
       </div>
+      ${budgetBarHtml}
       <div class="obubody">${deptsHTML}</div>
     </div>`;
   }).join('');
