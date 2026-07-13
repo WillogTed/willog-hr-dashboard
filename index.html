@@ -332,6 +332,10 @@ td.yel{color:var(--yellow);}
 .eval-new{font-size:9px;color:#22c55e;margin-left:3px;}
 .eval-comment-v3{font-size:12px;color:#475569;padding:8px 12px;background:#f8fafc;border-radius:6px;line-height:1.7;margin-bottom:4px;}
 
+/* ── 원본 기록 링크 (평가/면담) ── */
+.rec-link{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;white-space:nowrap;transition:all .15s;}
+.rec-link:hover{background:#2563eb;color:#fff;border-color:#2563eb;}
+
 /* ── 특별보수 배지 ── */
 .bonus-chip{display:inline-flex;align-items:center;gap:4px;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;}
 
@@ -629,7 +633,7 @@ const BU_CLR = {
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
-let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{} };
+let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{} };
 let G = { rev:150, ratio:60, pp:2, annualCostTarget:75 };
 
 // ═══════════════════════════════════════════════════
@@ -680,6 +684,7 @@ async function loadData() {
     S.report     = data.report     || null;
     S.insights   = data.insights   || null;
     S.deptBudgets= data.deptBudgets|| {};
+    S.deptAiCost = data.deptAiCost || {};
 
     if (data.revenue !== undefined)         G.rev              = Number(data.revenue)         || 150;
     if (data.targetCostRatio !== undefined) G.ratio            = Number(data.targetCostRatio) || 60;
@@ -864,11 +869,15 @@ function renderOrg() {
     const budgetKey = 'budget_'+bu;
     const budgetMan = S.deptBudgets ? (S.deptBudgets[budgetKey]||0) : 0;
     const budgetRatio = (budgetMan>0 && totAnnSal>0) ? (totAnnSal/budgetMan*100).toFixed(0) : null;
+    // AI 사용 비용: deptAiCost[본부명] 우선, 없으면 deptBudgets['ai_본부명'] 폴백 (단위: 만원/월)
+    const aiCostMan = (S.deptAiCost && S.deptAiCost[bu]) || (S.deptBudgets && S.deptBudgets['ai_'+bu]) || 0;
+    const aiPerHead = (aiCostMan>0 && members.length>0) ? Math.round(aiCostMan/members.length*10) : 0; // 천원/인
 
     const bustParts = [
       '<strong>'+members.length+'명</strong>',
       totAnnSal>0 ? '연봉총액 <strong>'+fmtChun(totAnnSal)+'</strong>' : '',
       budgetMan>0 ? '예산 '+fmtChun(budgetMan)+(budgetRatio?' (<span style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</span>)':'') : '',
+      aiCostMan>0 ? '🤖 AI 비용 <strong>'+fmtChun(aiCostMan)+'/월</strong>'+(aiPerHead>0?' <span style="color:var(--text3);">(인당 '+aiPerHead.toLocaleString()+'천원)</span>':'') : '',
     ].filter(Boolean).join(' &nbsp;·&nbsp; ');
 
     // 예산 막대그래프
@@ -1097,6 +1106,18 @@ function renderCostKPIs() {
     const c=toN(m.직접비)+toN(m.간접비1)+toN(m.간접비2);
     if(c>0){ytdCost+=c;ytdRev+=toN(m.매출억);ytdVol+=toN(m.자발);ytdInv+=toN(m.비자발);latestMo=i;}
   }}
+  // ── 전년 동기 (같은 개월 수) 누적 ──
+  const prev=S.prevMonths;
+  let pyCost=0,pyRev=0,pyHeadSum=0,pyHeadN=0;
+  if(prev&&latestMo>=0){for(let i=0;i<=latestMo;i++){
+    const pm=prev[i];if(!pm)continue;
+    const pc=toN(pm.직접비)+toN(pm.간접비1)+toN(pm.간접비2);
+    if(pc>0){pyCost+=pc;pyRev+=toN(pm.매출억);
+      const ph=toN(pm.월말)||toN(pm.월초);if(ph>0){pyHeadSum+=ph;pyHeadN++;}}
+  }}
+  const pyHead=pyHeadN>0?pyHeadSum/pyHeadN:0;
+  const pyRevMn=pyRev*10000;
+  const pyRatio=pyRevMn>0&&pyCost>0?pyCost/pyRevMn*100:null;
   const moCount=latestMo+1||1;
   const headN=emps.length;
   const ytdRevMn=ytdRev*10000;
@@ -1114,22 +1135,59 @@ function renderCostKPIs() {
   const leaderN=emps.filter(isLeader).length;
   const memberN=headN-leaderN;
 
+  // ── 전년 동기 대비 지표 계산 ──
+  const pyPpRev=pyHead>0&&pyRev>0?pyRev/moCount*12/pyHead:null;
+  // 증감 렌더: goodUp=true면 증가가 초록(매출계열), false면 증가가 빨강(비용계열)
+  const dline=(cur,pv,unit,goodUp,dec)=>{
+    if(pv===null||pv===undefined||!pv) return '';
+    const diff=cur-pv;
+    const pct=pv!==0?(diff/pv*100):0;
+    const up=diff>0;
+    const good=goodUp?up||diff===0:!up||diff===0;
+    const clr=Math.abs(diff)<1e-9?'var(--text3)':good?'var(--green)':'var(--red)';
+    const sign=up?'+':'';
+    return `전년 동기 ${pv.toFixed(dec)}${unit} 대비 <span style="color:${clr};font-weight:600;">${sign}${diff.toFixed(dec)}${unit} (${sign}${pct.toFixed(1)}%)</span>`;
+  };
+  const dlineP=(cur,pv)=>{ // %p 비교 (인건비율: 감소가 좋음)
+    if(pv===null||pv===undefined) return '';
+    const diff=cur-pv;
+    const clr=Math.abs(diff)<0.05?'var(--text3)':diff<0?'var(--green)':'var(--red)';
+    const sign=diff>0?'+':'';
+    return `전년 동기 ${pv.toFixed(1)}% 대비 <span style="color:${clr};font-weight:600;">${sign}${diff.toFixed(1)}%p</span>`;
+  };
+
+  const ytdCostUk=ytdCost/10000, pyCostUk=pyCost/10000;
+  const cumCostSub=[
+    dline(ytdCostUk,pyCost>0?pyCostUk:null,'억',false,1),
+    budgetUsed!==null?`목표(예산) ${(goalCost/10000).toFixed(1)}억 대비 <span style="color:${budgetUsed>100?'var(--red)':'var(--green)'};font-weight:600;">${budgetUsed.toFixed(1)}% 소진</span> · 잔여 ${((goalCost-ytdCost)/10000).toFixed(1)}억`:''
+  ].filter(Boolean).join('<br>');
+
+  const ratioSub=[
+    dlineP(ytdRatio,pyRatio),
+    `목표 ${G.ratio}% 대비 <span style="color:${ytdRatio>G.ratio?'var(--red)':'var(--green)'};font-weight:600;">${ytdRatio>G.ratio?'+':''}${(ytdRatio-G.ratio).toFixed(1)}%p${ytdRatio>G.ratio?' 초과 ✗':' 달성 ✓'}</span>`
+  ].filter(Boolean).join('<br>');
+
+  const ppSub=[
+    dline(ppRev,pyPpRev,'억',true,2),
+    `목표 ${G.pp}억/인 대비 <span style="color:${ppRev>=G.pp?'var(--green)':'var(--red)'};font-weight:600;">${ppRev>=G.pp?'달성 ✓':'미달 ✗'}</span>`
+  ].filter(Boolean).join('<br>');
+
   document.getElementById('cost-kpis').innerHTML=`
     ${mkSC2('재직자',`${headN}<small>명</small>`,`팀장↑ ${leaderN}명 · 팀원 ${memberN}명`)}
     ${mkSC2('평균 연봉',`${avgAnnSal.toLocaleString()}<small>만원</small>`,`평균 월 급여(세전) ${avgMonSal.toLocaleString()}만원 · ${headN}명 기준`)}
+    ${ytdCost>0?mkSC2(`누적 인건비<small> (${moCount}개월)</small>`,
+      `${ytdCostUk.toFixed(1)}<small>억</small>`,cumCostSub):''}
     ${ytdRatio!==null?mkSC2(`인건비율 실적<small> (${moCount}개월)</small>`,
       `<span style="color:${ytdRatio>G.ratio?'var(--red)':'var(--green)'};font-weight:700;">${ytdRatio.toFixed(1)}%</span>`,
-      `목표 ${G.ratio}% 대비 ${ytdRatio>G.ratio?'+':''}${(ytdRatio-G.ratio).toFixed(1)}%p${ytdRatio>G.ratio?' 초과 ✗':' 달성 ✓'}`):''}
-    ${ppRev!==null?mkSC2(`1인당 매출기여<small> (${moCount}개월)</small>`,
+      ratioSub):''}
+    ${ppRev!==null?mkSC2(`1인당 매출기여<small> (${moCount}개월, 연환산)</small>`,
       `<span style="color:${ppRev>=G.pp?'var(--green)':'var(--red)'};font-weight:700;">${ppRev.toFixed(2)}억</span>`,
-      `목표 ${G.pp}억/인 대비 ${ppRev>=G.pp?'달성 ✓':'미달 ✗'}`):''}
+      ppSub):''}
     ${mkSC2('자발적 퇴직률 (YTD)',`${volRate.toFixed(1)}%`,`누적 ${ytdVol}명 · 권고 기준 22% 이하`)}
     ${mkSC2('비자발적 퇴직률 (YTD)',`${invRate.toFixed(1)}%`,`누적 ${ytdInv}명 (총 퇴직 ${ytdVol+ytdInv}명)`)}
     ${ytdCost>0?mkSC2('월 평균 인건비 <small>* 세전급여+4대보험+퇴직금</small>',
       `${Math.round(monthlyAvg).toLocaleString()}<small>만원</small>`,
       `목표 ${Math.round(goalMoLy).toLocaleString()}만원 대비 ${monthlyAvg>goalMoLy?'+':''}${Math.round(monthlyAvg-goalMoLy).toLocaleString()}만원`):''}
-    ${budgetUsed!==null?mkSC2('연간 예산 소진율',`${budgetUsed.toFixed(1)}<small>%</small>`,
-      `${(ytdCost/10000).toFixed(1)}억 소진 (잔여 ${((goalCost-ytdCost)/10000).toFixed(1)}억)`):''}
   `;
 }
 
@@ -1831,8 +1889,14 @@ function renderProfile(data){
       var res = p['결과']||'';
       var resCls = res.includes('완료')||res.includes('통과')?'res-pass':res.includes('연장')?'res-extend':'res-end';
       var since = joinDate&&p['면담일'] ? ' · 입사 후 '+diffStr(joinDate,p['면담일']) : '';
+      var pUrl = p['기록URL'] || p['면담기록URL'] || '';
       pbHtml += '<div class="prob-box">'
-        +'<div class="prob-hd"><div class="prob-title">'+(p['면담차수']||'')+'차 면담</div><div class="prob-date">'+(p['면담일']||'')+since+'</div></div>'
+        +'<div class="prob-hd">'
+        +'<div style="display:flex;align-items:center;gap:8px;">'
+        +'<div class="prob-title">'+(p['면담차수']||'')+'차 면담</div>'
+        +(pUrl?'<a class="rec-link" href="'+pUrl+'" target="_blank">🔗 면담 원본 기록 보기</a>':'')
+        +'</div>'
+        +'<div class="prob-date">'+(p['면담일']||'')+since+'</div></div>'
         +'<div class="prob-who">면담자: '+(p['면담자']||'—')+'</div>'
         +(p['면담내용']?'<div class="prob-item"><div class="prob-lbl">면담 내용</div><div class="prob-txt">'+nl2br(p['면담내용'])+'</div></div>':'')
         +(p['특이사항_우려점']&&p['특이사항_우려점']!=='없음'?'<div class="prob-item"><div class="prob-lbl">특이사항</div><div class="prob-txt">'+nl2br(p['특이사항_우려점'])+'</div></div>':'')
@@ -1929,8 +1993,12 @@ function renderProfile(data){
   if (evals.length) {
     evals.forEach(function(ev, ei){
       if (ei>0) eHtml += '<hr style="border:none;border-top:1px solid #e2e8f0;margin:12px 0 16px;">';
+      var evUrl = ev['평가기록URL'] || ev['기록URL'] || '';
       eHtml += '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">'
+        +'<div style="display:flex;align-items:baseline;gap:8px;">'
         +'<div style="font-size:12px;font-weight:700;color:#1e293b;">'+(ev['평가기간']||'')+'</div>'
+        +(evUrl?'<a class="rec-link" href="'+evUrl+'" target="_blank">🔗 평가 기록 상세 보기</a>':'')
+        +'</div>'
         +'<div style="font-size:11px;color:#94a3b8;">1차: '+(ev['1차평가자']||'—')+' · 2차: '+(ev['2차평가자']||'—')+'</div></div>';
       eHtml += '<div class="eval-grid-v3">';
       GRADE_ITEMS.forEach(function(key, ki){
