@@ -405,10 +405,18 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
 .lvr-kpis{display:flex;gap:14px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--border);background:#fafbfc;}
 .lvr-k{font-size:11px;color:var(--text3);}
 .lvr-k strong{font-size:14px;color:var(--text);margin-right:2px;}
-.lvr-table{width:100%;border-collapse:collapse;font-size:11.5px;}
-.lvr-table th{background:#f8fafc;color:var(--text3);font-size:10.5px;font-weight:700;padding:7px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
-.lvr-table td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top;}
-.lvr-table td.nm{font-weight:700;color:var(--text);white-space:nowrap;}
+.lvr-table{width:100%;border-collapse:collapse;font-size:11.5px;table-layout:fixed;}
+.lvr-table th{background:#f8fafc;color:var(--text3);font-size:10.5px;font-weight:700;padding:7px 6px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+.lvr-table th.ta-c{text-align:center;}
+.lvr-table td{padding:7px 6px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top;word-break:break-word;}
+.lvr-table td.nm{font-weight:700;color:var(--text);white-space:nowrap;text-align:center;}
+.lvr-table .col-date{white-space:nowrap;}
+.lvr-table .col-nick{color:var(--text3);text-align:center;}
+.lvr-table .col-tenure{white-space:nowrap;text-align:center;}
+.lvr-table .col-gubun{text-align:center;}
+.lvr-table .col-re{text-align:center;}
+.lvr-table .col-note{color:var(--text3);}
+.lvr-table .lvr-reason{white-space:pre-line;line-height:1.5;}
 .lvr-chip{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10.5px;font-weight:700;white-space:nowrap;}
 .lvr-vol{background:#fffbeb;color:#d97706;}
 .lvr-invol{background:#fef2f2;color:#dc2626;}
@@ -587,23 +595,30 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
 
       <!-- 퇴직자 누적 관리 -->
       <div class="card">
-        <div class="chdr">
-          <div class="cttl">🚪 퇴직자 관리 (누적)</div>
+        <div class="chdr" onclick="toggleLeaversCard(event)" style="cursor:pointer;user-select:none;">
+          <div class="cttl"><span id="lvr-arrow" style="display:inline-block;width:13px;">▾</span>🚪 퇴직자 관리 (누적)</div>
           <div class="fc gap8">
             <span style="font-size:11px;color:var(--text3);">[퇴직자] 시트 자동 연동</span>
-            <select class="sel" id="lvrYear" onchange="renderLeavers()"><option value="">전체 연도</option></select>
+            <select class="sel" id="lvrYear" onclick="event.stopPropagation()" onchange="renderLeavers()"><option value="">전체 연도</option></select>
           </div>
         </div>
-        <div id="lvr-kpis" class="lvr-kpis"></div>
-        <div id="lvr-reasons" style="padding:12px 18px;border-bottom:1px solid var(--border);"></div>
-        <div class="cbody" style="overflow-x:auto;padding:0;">
-          <table class="lvr-table">
-            <thead><tr>
-              <th>퇴직일</th><th>이름</th><th>소속</th><th>재직기간</th><th>구분</th>
-              <th>퇴사 사유</th><th>퇴직평가</th><th>재입사</th><th>비고</th>
-            </tr></thead>
-            <tbody id="lvr-tbody"></tbody>
-          </table>
+        <div id="lvr-body">
+          <div id="lvr-kpis" class="lvr-kpis"></div>
+          <div id="lvr-reasons" style="padding:12px 18px;border-bottom:1px solid var(--border);"></div>
+          <div class="cbody" style="overflow-x:auto;padding:0;">
+            <table class="lvr-table">
+              <colgroup>
+                <col style="width:76px"><col style="width:56px"><col style="width:86px">
+                <col style="width:150px"><col style="width:58px"><col style="width:46px">
+                <col><col style="width:92px"><col style="width:100px">
+              </colgroup>
+              <thead><tr>
+                <th class="ta-c">퇴직일</th><th class="ta-c">이름</th><th class="ta-c">닉네임(영문)</th><th class="ta-c">소속</th><th class="ta-c">재직기간</th><th class="ta-c">구분</th>
+                <th class="ta-c">퇴사 사유</th><th class="ta-c">재입사 가능여부</th><th>비고</th>
+              </tr></thead>
+              <tbody id="lvr-tbody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -1187,14 +1202,16 @@ function renderOrg() {
         return `${leaderCardsHTML}${directHTML}${teamsHTML}`;
       }
       return `<div class="odgrp">
-        <div class="odttl">${deptLabel} <span style="font-weight:400;color:var(--text3);">${dMembers.length}명${deptSal>0?'<span class="sal-info"> · '+deptSal.toLocaleString()+'만</span>':''}</span></div>
-        ${leaderCardsHTML}${directHTML}${teamsHTML}
+        <div class="odttl" onclick="toggleDept(this)" style="cursor:pointer;user-select:none;">
+          <span class="od-arrow" style="display:inline-block;width:11px;">▾</span>${deptLabel} <span style="font-weight:400;color:var(--text3);">${dMembers.length}명${deptSal>0?'<span class="sal-info"> · '+deptSal.toLocaleString()+'만</span>':''}</span>
+        </div>
+        <div class="odbody">${leaderCardsHTML}${directHTML}${teamsHTML}</div>
       </div>`;
     }).join('');
 
     return `<div class="osec" style="border-color:${clr.bd};">
       <div class="obuhdr" style="background:${clr.bg};color:${clr.tx};" onclick="toggleBU(this)">
-        <span class="obuname">${bu}</span>
+        <span class="obuname"><span class="obu-arrow" style="display:inline-block;width:11px;">▾</span>${bu}</span>
         <span class="bust">${bustParts}</span>
       </div>
       ${budgetBarHtml}
@@ -1210,8 +1227,20 @@ function leaderRank(e) {
 }
 
 function toggleBU(el) {
+  const sec=el.closest('.osec');
+  const b=sec.querySelector('.obubody');
+  const isHidden=b.style.display==='none';
+  b.style.display=isHidden?'block':'none';
+  const bar=sec.querySelector('.budget-bar-wrap');
+  if(bar) bar.style.display=isHidden?'block':'none';
+  const arrow=el.querySelector('.obu-arrow');
+  if(arrow) arrow.textContent=isHidden?'▾':'▸';
+}
+function toggleDept(el) {
   const b=el.nextElementSibling;
   b.style.display=b.style.display==='none'?'block':'none';
+  const arrow=el.querySelector('.od-arrow');
+  if(arrow) arrow.textContent=b.style.display==='none'?'▸':'▾';
 }
 
 function mkOrgCard(e) {
@@ -1549,6 +1578,15 @@ function ytdBar(lbl,ann,color,pct){
   </div>`;
 }
 
+function toggleLeaversCard(evt) {
+  if (evt && evt.target && evt.target.tagName==='SELECT') return;
+  const body=document.getElementById('lvr-body');
+  const arrow=document.getElementById('lvr-arrow');
+  const hidden=body.style.display==='none';
+  body.style.display=hidden?'block':'none';
+  arrow.textContent=hidden?'▾':'▸';
+}
+
 // ═══════════════════════════════════════════════════
 // 퇴직자 누적 관리 ([퇴직자] 시트 연동)
 // ═══════════════════════════════════════════════════
@@ -1607,23 +1645,28 @@ function renderLeavers(){
     </div>`).join('');
 
   // ── 테이블 ──
+  const esc=v=>String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   tEl.innerHTML=list.map(l=>{
     const ten=diffStr(l.입사일,l.퇴직일)||'—';
     const isVol=String(l.퇴직구분||'').includes('자발')&&!String(l.퇴직구분||'').includes('비자발');
     const gubunChip=l.퇴직구분?`<span class="lvr-chip ${isVol?'lvr-vol':'lvr-invol'}">${l.퇴직구분}</span>`:'—';
     const rt=reType(l.재입사가능여부);
     const reChip=l.재입사가능여부?`<span class="lvr-chip ${rt==='y'?'lvr-re-y':rt==='n'?'lvr-re-n':'lvr-re-c'}">${l.재입사가능여부}</span>`:'—';
-    const reason=[l.퇴사사유,l.상세사유].filter(Boolean).join(' — ');
+    // 퇴사사유(카테고리)는 굵게 한 줄, 상세사유는 원본 줄바꿈을 그대로 보존해 아래에 표시 (white-space:pre-line)
+    const reasonHTML=[
+      l.퇴사사유?`<b>${esc(l.퇴사사유)}</b>`:'',
+      l.상세사유?esc(l.상세사유):''
+    ].filter(Boolean).join('<br>');
     return `<tr>
-      <td style="white-space:nowrap;">${l.퇴직일||'—'}</td>
-      <td class="nm">${l.닉네임||l.성명||'—'}</td>
-      <td style="white-space:nowrap;">${[l.본부,l.팀].filter(Boolean).join(' · ')||'—'}</td>
-      <td style="white-space:nowrap;">${ten}</td>
-      <td>${gubunChip}</td>
-      <td style="max-width:260px;">${reason||'—'}</td>
-      <td style="white-space:nowrap;">${l.퇴직평가||'—'}</td>
-      <td>${reChip}</td>
-      <td style="max-width:180px;color:var(--text3);">${l.비고||''}</td>
+      <td class="col-date">${l.퇴직일||'—'}</td>
+      <td class="nm">${esc(l.닉네임)||esc(l.성명)||'—'}</td>
+      <td class="col-nick">${esc(l.성명)||'—'}</td>
+      <td class="col-dept">${[esc(l.본부),esc(l.팀)].filter(Boolean).join('<br>· ')||'—'}</td>
+      <td class="col-tenure">${ten}</td>
+      <td class="col-gubun">${gubunChip}</td>
+      <td class="lvr-reason">${reasonHTML||'—'}</td>
+      <td class="col-re">${reChip}</td>
+      <td class="col-note">${esc(l.비고)}</td>
     </tr>`;
   }).join('');
 }
