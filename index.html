@@ -156,8 +156,10 @@ td.yel{color:var(--yellow);}
 
 /* ORG */
 .osec{border:1px solid var(--border);border-radius:10px;margin-bottom:12px;overflow:hidden;}
-.obuhdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;font-weight:700;font-size:13px;cursor:pointer;user-select:none;}
-.obuhdr .bust{font-size:13px;font-weight:700;color:inherit;opacity:0.8;}
+.obuhdr{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;font-weight:700;font-size:13px;cursor:pointer;user-select:none;word-break:keep-all;}
+.obuname{white-space:nowrap;flex-shrink:0;}
+.obuhdr .bust{font-size:13px;font-weight:700;color:inherit;opacity:0.8;text-align:right;}
+.bust .bpart{white-space:nowrap;}
 .obubody{padding:12px 16px;}
 .odgrp{margin-bottom:14px;}
 .odgrp:last-child{margin-bottom:0;}
@@ -339,6 +341,83 @@ td.yel{color:var(--yellow);}
 /* ── 특별보수 배지 ── */
 .bonus-chip{display:inline-flex;align-items:center;gap:4px;background:#f5f3ff;color:#7c3aed;border:1px solid #ddd6fe;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:700;}
 
+/* ── 개인 연봉 / Job-Level 가리기 (조직도) ──
+   · hide-sal : 개인 카드의 연봉만 숨김 (본부/부서 합계·예산은 유지)
+   · hide-lvl : 개인 카드의 Job-Level만 숨김 */
+body.hide-sal .ocsal{display:none!important;}
+body.hide-lvl .oclvl{display:none!important;}
+body.hide-status .ocstatus{display:none!important;}
+
+/* ── 조직도 PDF 출력 (print-org 모드) ──
+   화면에서도 동일 레이아웃으로 전환 후 인쇄 → 1페이지 자동 맞춤 계산과 실제 출력이 일치 */
+#print-hd{display:none;}
+body.print-org header,
+body.print-org #panel-cost,
+body.print-org #org-stats,
+body.print-org .org-noprint,
+body.print-org .oclinks{display:none!important;}
+body.print-org #panel-org{display:block!important;}
+body.print-org #print-hd{display:flex!important;justify-content:space-between;align-items:baseline;padding-bottom:6px;margin-bottom:8px;border-bottom:2px solid #1e293b;}
+body.print-org main{padding:0!important;max-width:none!important;margin:0!important;}
+body.print-org{background:#fff!important;}
+/* 인쇄 레이아웃: 2단 배치, 지면 폭 고정, 가독성 우선 (여러 페이지 허용) */
+body.print-org #org-tree{column-count:2;column-gap:14px;width:1062px;}
+body.print-org #print-hd{width:1062px;}
+body.print-org .osec{break-inside:avoid;page-break-inside:avoid;display:inline-block;width:100%;vertical-align:top;margin-bottom:10px;}
+body.print-org .obuhdr{padding:8px 12px;font-size:12.5px;}
+body.print-org .obuhdr .bust{font-size:10.5px;}
+body.print-org .obubody{padding:9px 12px;}
+body.print-org .odttl{font-size:10.5px;margin-bottom:6px;padding-bottom:4px;}
+body.print-org .odttl .sal-info{display:none!important;} /* 소그룹(1인 포함) 연봉 합계 숨김 — 본부 합계는 유지 */
+body.print-org .ocards{gap:5px;}
+body.print-org .ocard{padding:6px 9px;min-width:102px;border-radius:6px;box-shadow:none;}
+body.print-org .ocname{font-size:11px;gap:4px;}
+body.print-org .ocinfo{font-size:9.5px;margin-top:1px;}
+body.print-org .ocsal{font-size:9.5px;margin-top:2px;}
+body.print-org .budget-bar-wrap{padding:5px 12px 7px;}
+body.print-org .budget-bar-track{height:11px;}
+body.print-org .budget-bar-meta{font-size:9.5px;}
+@media print{
+  @page{size:A4 landscape;margin:8mm;}
+  body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+}
+
+/* ── KPI 카드 비교행 (전년/목표) ── */
+.cmp-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:11px;margin-top:5px;padding-top:5px;border-top:1px dashed var(--border);}
+.cmp-row:first-of-type{margin-top:7px;}
+.cmp-lbl{color:var(--text3);font-weight:600;white-space:nowrap;}
+.cmp-val{font-weight:700;font-size:11.5px;text-align:right;}
+.cmp-base{color:var(--text3);font-weight:500;font-size:10.5px;}
+
+/* ── 목표 진도 바 (YTD) ── */
+.gp-row{margin-bottom:14px;}
+.gp-hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;font-size:12px;}
+.gp-name{font-weight:700;color:var(--text);}
+.gp-fig{font-weight:700;font-size:13px;}
+.gp-track{height:20px;background:var(--border);border-radius:5px;position:relative;overflow:visible;}
+.gp-fill{height:100%;border-radius:5px;transition:width .5s;}
+.gp-pace{position:absolute;top:-4px;bottom:-4px;width:0;border-left:2px dashed #64748b;}
+.gp-pace-lbl{position:absolute;top:-18px;transform:translateX(-50%);font-size:9.5px;color:#64748b;white-space:nowrap;font-weight:600;}
+.gp-py{position:absolute;top:100%;transform:translateX(-50%);font-size:10px;line-height:1;margin-top:1px;}
+.gp-meta{display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);margin-top:14px;}
+
+/* ── 퇴직자 관리 ── */
+.lvr-kpis{display:flex;gap:14px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--border);background:#fafbfc;}
+.lvr-k{font-size:11px;color:var(--text3);}
+.lvr-k strong{font-size:14px;color:var(--text);margin-right:2px;}
+.lvr-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+.lvr-table th{background:#f8fafc;color:var(--text3);font-size:10.5px;font-weight:700;padding:7px 8px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+.lvr-table td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top;}
+.lvr-table td.nm{font-weight:700;color:var(--text);white-space:nowrap;}
+.lvr-chip{display:inline-block;padding:1px 7px;border-radius:4px;font-size:10.5px;font-weight:700;white-space:nowrap;}
+.lvr-vol{background:#fffbeb;color:#d97706;}
+.lvr-invol{background:#fef2f2;color:#dc2626;}
+.lvr-re-y{background:#f0fdf4;color:#16a34a;}
+.lvr-re-n{background:#fef2f2;color:#dc2626;}
+.lvr-re-c{background:#fffbeb;color:#d97706;}
+.lvr-reason-bar{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:5px;}
+.lvr-reason-lbl{width:110px;min-width:110px;color:var(--text2);text-align:right;}
+
 /* ── 부서별 예산 막대그래프 ── */
 .budget-bar-wrap{padding:8px 16px 10px;border-bottom:1px solid var(--border);background:#fafbfc;}
 .budget-bar-track{height:16px;background:var(--border);border-radius:4px;overflow:visible;position:relative;margin-bottom:4px;}
@@ -391,7 +470,7 @@ td.yel{color:var(--yellow);}
       <div class="sgrid" id="org-stats"></div>
 
       <!-- 급여 Top 10 (접이식, 최상단) -->
-      <div class="card" style="margin-bottom:14px;">
+      <div class="card org-noprint" style="margin-bottom:14px;">
         <div class="sal-toggle" id="sal-toggle" onclick="toggleSal()">
           <div class="fc gap8">
             <span class="cttl">💰 급여 Top 10</span>
@@ -405,7 +484,7 @@ td.yel{color:var(--yellow);}
       </div>
 
       <!-- 신호등 범례 + 필터 -->
-      <div class="fb" style="flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+      <div class="fb org-noprint" style="flex-wrap:wrap;gap:8px;margin-bottom:12px;">
         <div class="fc gap8" style="font-size:11px;color:var(--text2);flex-wrap:wrap;">
           <span style="color:var(--text3);">정상 (표기없음)</span>
           <span><span style="color:#d97706;font-weight:900;margin-right:3px;">△</span>관찰필요</span>
@@ -414,7 +493,17 @@ td.yel{color:var(--yellow);}
           <span style="display:inline-block;width:10px;height:10px;background:#f5f3ff;border:2px solid #8b5cf6;border-radius:2px;vertical-align:middle;margin-right:3px;"></span><span>부서장</span>
           <span style="display:inline-block;width:10px;height:10px;background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:2px;vertical-align:middle;margin-right:3px;"></span><span>팀장</span>
         </div>
-        <div class="fc gap8">
+        <div class="fc gap8" style="flex-wrap:wrap;">
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none;white-space:nowrap;">
+            <input type="checkbox" id="salMask" onchange="applyMasks()" style="accent-color:#2563eb;cursor:pointer;">🔒 개인 연봉 가리기
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none;white-space:nowrap;">
+            <input type="checkbox" id="lvlMask" onchange="applyMasks()" style="accent-color:#2563eb;cursor:pointer;">🔒 Job-Level 가리기
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none;white-space:nowrap;">
+            <input type="checkbox" id="statusMask" onchange="applyMasks()" style="accent-color:#2563eb;cursor:pointer;">🔒 Status 가리기
+          </label>
+          <button class="rbtn" style="white-space:nowrap;" onclick="printOrgPdf()">🖨 PDF 출력</button>
           <select class="sel" id="buF" onchange="renderOrg()"><option value="">전체 본부/부서</option></select>
           <select class="sel" id="stF" onchange="renderOrg()">
             <option value="">전체 재직상태</option>
@@ -422,6 +511,12 @@ td.yel{color:var(--yellow);}
             <option value="퇴직예정">퇴직예정</option>
           </select>
         </div>
+      </div>
+
+      <!-- PDF 출력용 헤더 (인쇄 시에만 표시) -->
+      <div id="print-hd">
+        <div style="font-size:18px;font-weight:800;color:#1e293b;">Willog 조직도</div>
+        <div style="font-size:11px;color:#64748b;" id="print-hd-date"></div>
       </div>
 
       <!-- 조직도 본문 -->
@@ -488,6 +583,28 @@ td.yel{color:var(--yellow);}
       <div class="card">
         <div class="chdr"><div class="cttl">월별 입퇴사 추이(명)</div></div>
         <div class="cbody" id="inout-chart"></div>
+      </div>
+
+      <!-- 퇴직자 누적 관리 -->
+      <div class="card">
+        <div class="chdr">
+          <div class="cttl">🚪 퇴직자 관리 (누적)</div>
+          <div class="fc gap8">
+            <span style="font-size:11px;color:var(--text3);">[퇴직자] 시트 자동 연동</span>
+            <select class="sel" id="lvrYear" onchange="renderLeavers()"><option value="">전체 연도</option></select>
+          </div>
+        </div>
+        <div id="lvr-kpis" class="lvr-kpis"></div>
+        <div id="lvr-reasons" style="padding:12px 18px;border-bottom:1px solid var(--border);"></div>
+        <div class="cbody" style="overflow-x:auto;padding:0;">
+          <table class="lvr-table">
+            <thead><tr>
+              <th>퇴직일</th><th>이름</th><th>소속</th><th>재직기간</th><th>구분</th>
+              <th>퇴사 사유</th><th>퇴직평가</th><th>재입사</th><th>비고</th>
+            </tr></thead>
+            <tbody id="lvr-tbody"></tbody>
+          </table>
+        </div>
       </div>
 
       <!-- 월별 주요 지표 (구 인건비 상세) + 전년 대비 -->
@@ -633,7 +750,7 @@ const BU_CLR = {
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
-let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{} };
+let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{}, leavers:[] };
 let G = { rev:150, ratio:60, pp:2, annualCostTarget:75 };
 
 // ═══════════════════════════════════════════════════
@@ -685,6 +802,7 @@ async function loadData() {
     S.insights   = data.insights   || null;
     S.deptBudgets= data.deptBudgets|| {};
     S.deptAiCost = data.deptAiCost || {};
+    S.leavers    = data.leavers    || [];
 
     if (data.revenue !== undefined)         G.rev              = Number(data.revenue)         || 150;
     if (data.targetCostRatio !== undefined) G.ratio            = Number(data.targetCostRatio) || 60;
@@ -720,6 +838,108 @@ function applyGoals() {
   G.annualCostTarget = G.rev * G.ratio / 100;
   renderCostKPIs(); renderCostChart(); renderCostTable(); renderInsights();
 }
+
+// ═══════════════════════════════════════════════════
+// 개인 연봉/Job-Level 가리기 + 조직도 PDF 출력 (1페이지 자동 맞춤)
+// ═══════════════════════════════════════════════════
+function applyMasks() {
+  document.body.classList.toggle('hide-sal', document.getElementById('salMask').checked);
+  document.body.classList.toggle('hide-lvl', document.getElementById('lvlMask').checked);
+  document.body.classList.toggle('hide-status', document.getElementById('statusMask').checked);
+}
+
+// ── PDF 출력용 조직 병합 규칙 ──
+// 1인 조직의 인건비 유추 방지를 위해 PDF 출력 시에만 그룹 묶음 적용.
+// match: 본부/부서/팀 이름에 키워드가 포함되면 → 해당 인원을 bu(독립 그룹)로 재배치.
+//  · 해외법인 3개 → '해외법인' 단일 그룹
+//  · 연구기획 팀(BOOST에서 분리) + 대외협력 → '연구기획 · 대외협력' 독립 그룹 (명단·비용 합산 표시)
+// ※ 조직 개편으로 이름이 바뀌면 여기 키워드만 수정하면 됨.
+const PRINT_MERGE_RULES = [
+  { match:['미국','일본','싱가포르','해외'], bu:'해외법인 (미국 · 일본 · 싱가포르)' },
+  { match:['대외협력','연구기획'],            bu:'연구기획 · 대외협력' },
+];
+function mergeForPrint(e){
+  const hay=[e.본부,e.본부부서,e.팀].map(x=>String(x||'')).join('|');
+  for(const r of PRINT_MERGE_RULES){
+    if(r.match.some(k=>hay.includes(k))){
+      // 원소속(팀 > 부서 > 본부 중 가장 구체적인 것)을 그룹 내 소제목으로 유지
+      // → 병합 박스 안에서 '미국 법인 / 일본 법인 / 연구기획 팀 / 대외협력' 단위로 구분 표시됨
+      // _origBu: 원소속 본부 (병합 그룹 AI 비용 자동 합산에 사용)
+      const origin = e.팀 || (e.본부부서 && e.본부부서!==e.본부 ? e.본부부서 : '') || e.본부;
+      return Object.assign({},e,{본부:r.bu,본부부서:origin,팀:'',_origBu:e.본부});
+    }
+  }
+  return e;
+}
+
+// 본부명으로 AI 비용 조회 — 공백 차이 무시 매칭 (deptAiCost 우선, deptBudgets['ai_...'] 폴백)
+function aiCostFor(name){
+  const norm=v=>String(v||'').replace(/\s+/g,'');
+  const n=norm(name);
+  if(!n) return 0;
+  if(S.deptAiCost){for(const k in S.deptAiCost){if(norm(k)===n) return S.deptAiCost[k]||0;}}
+  if(S.deptBudgets){for(const k in S.deptBudgets){if(k.indexOf('ai_')===0 && norm(k.slice(3))===n) return S.deptBudgets[k]||0;}}
+  return 0;
+}
+
+let ORG_PRINT_MODE=false;
+function printOrgPdf() {
+  if (!document.getElementById('panel-org').classList.contains('active')) switchTab('org');
+
+  // 공유용 기본값: 개인 연봉 + Job-Level 가림 (취소 시 현재 화면 설정 그대로)
+  const share = confirm('부서장 공유용으로 출력할까요?\n\n[확인] 개인 연봉 · Job-Level · Status 가림 + 1인 조직 그룹 묶음 (권장)\n[취소] 현재 화면 설정 그대로 출력');
+  if (share) {
+    document.getElementById('salMask').checked = true;
+    document.getElementById('lvlMask').checked = true;
+    document.getElementById('statusMask').checked = true;
+    applyMasks();
+  }
+
+  // 병합 렌더
+  ORG_PRINT_MODE = true;
+  renderOrg();
+
+  // 출력 헤더
+  const now = new Date();
+  const buF = document.getElementById('buF').value;
+  const masked = [];
+  if (document.getElementById('salMask').checked) masked.push('개인 연봉 비공개');
+  if (document.getElementById('lvlMask').checked) masked.push('Job-Level 비공개');
+  if (document.getElementById('statusMask').checked) masked.push('Status 비공개');
+  document.getElementById('print-hd-date').textContent =
+    (buF?buF+' · ':'') + `${now.getFullYear()}. ${String(now.getMonth()+1).padStart(2,'0')}. ${String(now.getDate()).padStart(2,'0')} 기준`
+    + (masked.length ? ' · ' + masked.join(' · ') : '');
+
+  document.body.classList.add('print-org');
+  fitOrgToPage();
+  window.print();
+}
+
+// 인쇄 배율 보정: 가독성 우선 원칙.
+// 페이지 경계를 살짝(15% 이내) 넘길 때만 소폭 축소해 페이지 수를 줄이고,
+// 그 외에는 원본 크기 그대로 여러 페이지로 자연 분할 출력.
+function fitOrgToPage() {
+  const PAGE_H = 675;    // A4 가로 1페이지 유효 높이(px, 96dpi, 여백·헤더 제외)
+  const tree = document.getElementById('org-tree');
+  tree.style.zoom='';
+  const h = tree.scrollHeight;
+  const pages = h / PAGE_H;
+  const frac = pages - Math.floor(pages);
+  // 마지막 페이지에 15% 이하만 걸치면 → 한 페이지 줄이는 수준까지만 축소 (최소 0.87배 = 가독 유지)
+  if (pages > 1 && frac > 0 && frac <= 0.15) {
+    const z = Math.max(0.87, (Math.floor(pages) * PAGE_H) / h);
+    tree.style.zoom = z;
+    tree.style.width = Math.round(1062 / z) + 'px';
+  }
+}
+
+window.addEventListener('afterprint', () => {
+  document.body.classList.remove('print-org');
+  const tree = document.getElementById('org-tree');
+  tree.style.zoom=''; tree.style.width='';
+  ORG_PRINT_MODE = false;
+  renderOrg();
+});
 
 // ═══════════════════════════════════════════════════
 // emps 필드 헬퍼 (Apps Script v3 필드명)
@@ -784,6 +1004,7 @@ function renderAll() {
   renderInOutChart();
   renderCostTable();
   renderDeptChart();
+  renderLeavers();
   renderTenureChart();
   renderLevelChart();
 }
@@ -845,6 +1066,9 @@ function renderOrg() {
   }
   if (buF) emps = emps.filter(e=>empBu(e)===buF);
 
+  // PDF 출력 모드: 1인 조직 보호를 위한 그룹 병합 (PRINT_MERGE_RULES)
+  if (typeof ORG_PRINT_MODE!=='undefined' && ORG_PRINT_MODE) emps = emps.map(mergeForPrint);
+
   // 본부 그룹핑
   const buMap = {};
   emps.forEach(e => {
@@ -869,15 +1093,21 @@ function renderOrg() {
     const budgetKey = 'budget_'+bu;
     const budgetMan = S.deptBudgets ? (S.deptBudgets[budgetKey]||0) : 0;
     const budgetRatio = (budgetMan>0 && totAnnSal>0) ? (totAnnSal/budgetMan*100).toFixed(0) : null;
-    // AI 사용 비용: deptAiCost[본부명] 우선, 없으면 deptBudgets['ai_본부명'] 폴백 (단위: 만원/월)
-    const aiCostMan = (S.deptAiCost && S.deptAiCost[bu]) || (S.deptBudgets && S.deptBudgets['ai_'+bu]) || 0;
+    // AI 사용 비용 (단위: 만원/월)
+    // ① 본부명 정확/공백무시 매칭 → ② 병합 그룹이면 원소속 본부들의 AI 비용 자동 합산
+    //    (단, 원소속 본부가 여전히 별도 박스로 존재하면 이중 계산 방지를 위해 합산 제외)
+    let aiCostMan = aiCostFor(bu);
+    if (!aiCostMan && typeof ORG_PRINT_MODE!=='undefined' && ORG_PRINT_MODE) {
+      const origBus = [...new Set(members.map(m=>m._origBu||'').filter(b=>b && !buMap[b]))];
+      aiCostMan = origBus.reduce((sum,b)=>sum+aiCostFor(b), 0);
+    }
     const aiPerHead = (aiCostMan>0 && members.length>0) ? Math.round(aiCostMan/members.length*10) : 0; // 천원/인
 
     const bustParts = [
-      '<strong>'+members.length+'명</strong>',
-      totAnnSal>0 ? '연봉총액 <strong>'+fmtChun(totAnnSal)+'</strong>' : '',
-      budgetMan>0 ? '예산 '+fmtChun(budgetMan)+(budgetRatio?' (<span style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</span>)':'') : '',
-      aiCostMan>0 ? '🤖 AI 비용 <strong>'+fmtChun(aiCostMan)+'/월</strong>'+(aiPerHead>0?' <span style="color:var(--text3);">(인당 '+aiPerHead.toLocaleString()+'천원)</span>':'') : '',
+      '<span class="bpart"><strong>'+members.length+'명</strong></span>',
+      totAnnSal>0 ? '<span class="bpart sal-info">연봉총액 <strong>'+fmtChun(totAnnSal)+'</strong></span>' : '',
+      budgetMan>0 ? '<span class="bpart sal-info">예산 '+fmtChun(budgetMan)+(budgetRatio?' (<span style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</span>)':'')+'</span>' : '',
+      aiCostMan>0 ? '<span class="bpart">🤖 AI 비용 <strong>'+fmtChun(aiCostMan)+'/월</strong></span>'+(aiPerHead>0?' <span class="bpart" style="color:var(--text3);">(인당 '+aiPerHead.toLocaleString()+'천원)</span>':'') : '',
     ].filter(Boolean).join(' &nbsp;·&nbsp; ');
 
     // 예산 막대그래프
@@ -887,7 +1117,7 @@ function renderOrg() {
       const barW = Math.min(pct, 100);
       const cls  = pct > 105 ? 'over' : pct > 95 ? 'warn' : 'ok';
       const label= pct > 105 ? '▲ 예산 초과' : pct > 95 ? '▲ 예산 근접' : '✓ 예산 내';
-      budgetBarHtml = `<div class="budget-bar-wrap">
+      budgetBarHtml = `<div class="budget-bar-wrap sal-info">
         <div class="budget-bar-track">
           <div class="budget-bar-fill ${cls}" style="width:${barW}%;"></div>
         </div>
@@ -957,14 +1187,14 @@ function renderOrg() {
         return `${leaderCardsHTML}${directHTML}${teamsHTML}`;
       }
       return `<div class="odgrp">
-        <div class="odttl">${deptLabel} <span style="font-weight:400;color:var(--text3);">${dMembers.length}명${deptSal>0?' · '+deptSal.toLocaleString()+'만':''}</span></div>
+        <div class="odttl">${deptLabel} <span style="font-weight:400;color:var(--text3);">${dMembers.length}명${deptSal>0?'<span class="sal-info"> · '+deptSal.toLocaleString()+'만</span>':''}</span></div>
         ${leaderCardsHTML}${directHTML}${teamsHTML}
       </div>`;
     }).join('');
 
     return `<div class="osec" style="border-color:${clr.bd};">
       <div class="obuhdr" style="background:${clr.bg};color:${clr.tx};" onclick="toggleBU(this)">
-        <span>${bu}</span>
+        <span class="obuname">${bu}</span>
         <span class="bust">${bustParts}</span>
       </div>
       ${budgetBarHtml}
@@ -989,11 +1219,12 @@ function mkOrgCard(e) {
   const sig    = empSig(e);
   // 정상(green): 표기 없음 / 관찰필요(yellow): △ / 위험신호(red): ! 뱃지
   const sigHTML= sig==='yellow'
-    ? `<span class="sig sy" style="flex-shrink:0;margin-right:2px;">△</span>`
+    ? `<span class="ocstatus sig sy" style="flex-shrink:0;margin-right:2px;">△</span>`
     : sig==='red'
-    ? `<span class="sig sr" style="flex-shrink:0;margin-right:3px;">!</span>`
+    ? `<span class="ocstatus sig sr" style="flex-shrink:0;margin-right:3px;">!</span>`
     : '';
-  const info   = [empPos(e), empLv(e)].filter(Boolean).join(' · ');
+  const _pos   = empPos(e), _lv = empLv(e);
+  const info   = (_pos?_pos:'') + (_lv?`<span class="oclvl">${_pos?' · ':''}${_lv}</span>`:'');
   const sal    = empSal(e);
   const salHTML= sal?`<div class="ocsal">${Math.round(sal*10).toLocaleString()}천원/월</div>`:'';
   const lt     = leaderType(e);
@@ -1137,8 +1368,11 @@ function renderCostKPIs() {
 
   // ── 전년 동기 대비 지표 계산 ──
   const pyPpRev=pyHead>0&&pyRev>0?pyRev/moCount*12/pyHead:null;
-  // 증감 렌더: goodUp=true면 증가가 초록(매출계열), false면 증가가 빨강(비용계열)
-  const dline=(cur,pv,unit,goodUp,dec)=>{
+  // 비교행 렌더: [라벨, 값HTML] 쌍 → 카드 하단 구조화 표시
+  const cmpRows=rows=>rows.filter(r=>r&&r[1]).map(r=>
+    `<div class="cmp-row"><span class="cmp-lbl">${r[0]}</span><span class="cmp-val">${r[1]}</span></div>`).join('');
+  // 증감 값: goodUp=true면 증가가 초록(매출계열), false면 증가가 빨강(비용계열)
+  const dval=(cur,pv,unit,goodUp,dec)=>{
     if(pv===null||pv===undefined||!pv) return '';
     const diff=cur-pv;
     const pct=pv!==0?(diff/pv*100):0;
@@ -1146,31 +1380,31 @@ function renderCostKPIs() {
     const good=goodUp?up||diff===0:!up||diff===0;
     const clr=Math.abs(diff)<1e-9?'var(--text3)':good?'var(--green)':'var(--red)';
     const sign=up?'+':'';
-    return `전년 동기 ${pv.toFixed(dec)}${unit} 대비 <span style="color:${clr};font-weight:600;">${sign}${diff.toFixed(dec)}${unit} (${sign}${pct.toFixed(1)}%)</span>`;
+    return `<span class="cmp-base">${pv.toFixed(dec)}${unit} →</span> <span style="color:${clr};">${sign}${diff.toFixed(dec)}${unit} (${sign}${pct.toFixed(1)}%)</span>`;
   };
-  const dlineP=(cur,pv)=>{ // %p 비교 (인건비율: 감소가 좋음)
+  const dvalP=(cur,pv)=>{ // %p 비교 (인건비율: 감소가 좋음)
     if(pv===null||pv===undefined) return '';
     const diff=cur-pv;
     const clr=Math.abs(diff)<0.05?'var(--text3)':diff<0?'var(--green)':'var(--red)';
     const sign=diff>0?'+':'';
-    return `전년 동기 ${pv.toFixed(1)}% 대비 <span style="color:${clr};font-weight:600;">${sign}${diff.toFixed(1)}%p</span>`;
+    return `<span class="cmp-base">${pv.toFixed(1)}% →</span> <span style="color:${clr};">${sign}${diff.toFixed(1)}%p</span>`;
   };
 
   const ytdCostUk=ytdCost/10000, pyCostUk=pyCost/10000;
-  const cumCostSub=[
-    dline(ytdCostUk,pyCost>0?pyCostUk:null,'억',false,1),
-    budgetUsed!==null?`목표(예산) ${(goalCost/10000).toFixed(1)}억 대비 <span style="color:${budgetUsed>100?'var(--red)':'var(--green)'};font-weight:600;">${budgetUsed.toFixed(1)}% 소진</span> · 잔여 ${((goalCost-ytdCost)/10000).toFixed(1)}억`:''
-  ].filter(Boolean).join('<br>');
+  const cumCostSub=cmpRows([
+    ['vs 전년 동기', dval(ytdCostUk,pyCost>0?pyCostUk:null,'억',false,1)],
+    ['vs 예산', budgetUsed!==null?`<span style="color:${budgetUsed>100?'var(--red)':'var(--green)'};">${budgetUsed.toFixed(1)}% 소진</span> <span class="cmp-base">잔여 ${((goalCost-ytdCost)/10000).toFixed(1)}억</span>`:'']
+  ]);
 
-  const ratioSub=[
-    dlineP(ytdRatio,pyRatio),
-    `목표 ${G.ratio}% 대비 <span style="color:${ytdRatio>G.ratio?'var(--red)':'var(--green)'};font-weight:600;">${ytdRatio>G.ratio?'+':''}${(ytdRatio-G.ratio).toFixed(1)}%p${ytdRatio>G.ratio?' 초과 ✗':' 달성 ✓'}</span>`
-  ].filter(Boolean).join('<br>');
+  const ratioSub=cmpRows([
+    ['vs 전년 동기', dvalP(ytdRatio,pyRatio)],
+    ['vs 목표 '+G.ratio+'%', `<span style="color:${ytdRatio>G.ratio?'var(--red)':'var(--green)'};">${ytdRatio>G.ratio?'+':''}${(ytdRatio-G.ratio).toFixed(1)}%p ${ytdRatio>G.ratio?'초과 ✗':'달성 ✓'}</span>`]
+  ]);
 
-  const ppSub=[
-    dline(ppRev,pyPpRev,'억',true,2),
-    `목표 ${G.pp}억/인 대비 <span style="color:${ppRev>=G.pp?'var(--green)':'var(--red)'};font-weight:600;">${ppRev>=G.pp?'달성 ✓':'미달 ✗'}</span>`
-  ].filter(Boolean).join('<br>');
+  const ppSub=cmpRows([
+    ['vs 전년 동기', dval(ppRev,pyPpRev,'억',true,2)],
+    ['vs 목표 '+G.pp+'억/인', `<span style="color:${ppRev>=G.pp?'var(--green)':'var(--red)'};">${ppRev>=G.pp?'달성 ✓':'미달 ✗'}</span>`]
+  ]);
 
   document.getElementById('cost-kpis').innerHTML=`
     ${mkSC2('재직자',`${headN}<small>명</small>`,`팀장↑ ${leaderN}명 · 팀원 ${memberN}명`)}
@@ -1249,19 +1483,60 @@ function renderCostChart() {
   const goalRev=G.rev,goalCost=G.annualCostTarget;
   const maxYTD=Math.max(ytdCost,ytdRev,0.1);
   const ytdRatio=ytdRev>0?(ytdCost/ytdRev*100).toFixed(1):'—';
-  const revPct=Math.min(ytdRev/goalRev*100,100),costPct=Math.min(ytdCost/goalCost*100,100);
+  const revPct=ytdRev/goalRev*100,costPct=ytdCost/goalCost*100;
+
+  // 전년 동기 누적 (같은 개월 수) + 기간 경과율
+  const moCnt=data.filter(d=>d.cost>0).length;
+  const pacePct=moCnt/12*100;
+  let pyC=0,pyR=0;
+  if(S.prevMonths){for(let i=0;i<moCnt&&i<12;i++){
+    const pm=S.prevMonths[i];if(!pm)continue;
+    const pc=(toN(pm.직접비)+toN(pm.간접비1)+toN(pm.간접비2))/10000;
+    if(pc>0){pyC+=pc;pyR+=toN(pm.매출억);}
+  }}
+  const pyCostPct=pyC>0?pyC/goalCost*100:null;
+  const pyRevPct=pyR>0?pyR/goalRev*100:null;
+
+  // 목표 진도 바: fill=올해 누적, 점선=기간 경과(moCnt/12), ▲=전년 동기
+  const gpBar=(name,fig,figClr,pct,barClr,pyPct,pyVal,metaL,metaR)=>{
+    const w=Math.min(pct,100);
+    return `<div class="gp-row">
+      <div class="gp-hd"><span class="gp-name">${name}</span><span class="gp-fig" style="color:${figClr};">${fig}</span></div>
+      <div class="gp-track">
+        <div class="gp-fill" style="width:${w.toFixed(1)}%;background:${barClr};"></div>
+        <div class="gp-pace" style="left:${pacePct.toFixed(1)}%;"><span class="gp-pace-lbl">기간 ${pacePct.toFixed(0)}%</span></div>
+        ${pyPct!==null?`<div class="gp-py" style="left:${Math.min(pyPct,100).toFixed(1)}%;color:#94a3b8;" title="전년 동기 ${pyVal}">▲</div>`:''}
+      </div>
+      <div class="gp-meta"><span>${metaL}</span><span>${metaR}</span></div>
+    </div>`;
+  };
 
   ytdEl.innerHTML=`
     <div class="fb" style="margin-bottom:8px;font-size:12px;color:var(--text2);">
-      <span style="font-weight:600;">누적 인건비 vs 매출 비교 (YTD)</span>
+      <span style="font-weight:600;">누적 인건비 vs 매출 비교 (YTD · ${moCnt}개월)</span>
       <span class="tag trd" style="font-size:12px;">인건비율 ${ytdRatio}%</span>
     </div>
     ${ytdBar('인건비',ytdCost.toFixed(2)+'억','#2563eb',Math.min(ytdCost/maxYTD*100,100))}
     ${ytdBar('매출',ytdRev.toFixed(2)+'억','#22c55e',Math.min(ytdRev/maxYTD*100,100))}
-    <div style="font-size:11px;color:var(--text3);margin-top:6px;display:flex;gap:16px;flex-wrap:wrap;">
-      <span>매출 목표 ${goalRev}억 대비 <span style="color:var(--${ytdRev>=goalRev?'green':'red'});font-weight:600;">${revPct.toFixed(1)}% 달성</span> (Gap: ${(ytdRev-goalRev).toFixed(2)}억)</span>
-      <span>인건비 목표 ${goalCost}억 대비 <span style="color:var(--${ytdCost<=goalCost?'green':'red'});font-weight:600;">${costPct.toFixed(1)}% 소진</span></span>
-    </div>`;
+
+    <div style="font-size:12px;font-weight:600;color:var(--text2);margin:18px 0 20px;padding-top:12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+      <span>연간 목표 대비 진도</span>
+      <span style="font-size:10.5px;font-weight:500;color:var(--text3);">┆ 기간 경과 (${moCnt}/12개월) &nbsp; <span style="color:#94a3b8;">▲</span> 전년 동기 위치</span>
+    </div>
+    ${gpBar('인건비 예산 소진',
+      `${costPct.toFixed(1)}% <small style="font-weight:500;color:var(--text3);">(${ytdCost.toFixed(1)} / ${goalCost}억)</small>`,
+      costPct>pacePct?'var(--red)':'var(--green)',
+      costPct, costPct>pacePct?'#ef4444':'#2563eb',
+      pyCostPct, pyC.toFixed(1)+'억',
+      `잔여 예산 ${(goalCost-ytdCost).toFixed(1)}억`,
+      pyC>0?`전년 동기 ${pyC.toFixed(1)}억 → <b style="color:${ytdCost>pyC?'var(--red)':'var(--green)'};">${ytdCost>pyC?'+':''}${(ytdCost-pyC).toFixed(1)}억 (${pyC>0?((ytdCost-pyC)/pyC*100).toFixed(1):'—'}%)</b>`:'')}
+    ${gpBar('매출 목표 달성',
+      `${revPct.toFixed(1)}% <small style="font-weight:500;color:var(--text3);">(${ytdRev.toFixed(1)} / ${goalRev}억)</small>`,
+      revPct>=pacePct?'var(--green)':'var(--red)',
+      revPct, revPct>=pacePct?'#22c55e':'#f59e0b',
+      pyRevPct, pyR.toFixed(1)+'억',
+      `목표 Gap ${(ytdRev-goalRev).toFixed(1)}억`,
+      pyR>0?`전년 동기 ${pyR.toFixed(1)}억 → <b style="color:${ytdRev>=pyR?'var(--green)':'var(--red)'};">${ytdRev>=pyR?'+':''}${(ytdRev-pyR).toFixed(1)}억 (${pyR>0?((ytdRev-pyR)/pyR*100).toFixed(1):'—'}%)</b>`:'')}`;
 }
 
 function ytdBar(lbl,ann,color,pct){
@@ -1272,6 +1547,99 @@ function ytdBar(lbl,ann,color,pct){
       <div style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:#fff;">${ann}</div>
     </div>
   </div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// 퇴직자 누적 관리 ([퇴직자] 시트 연동)
+// ═══════════════════════════════════════════════════
+let lvrYearInit=false;
+function renderLeavers(){
+  const kEl=document.getElementById('lvr-kpis');
+  const rEl=document.getElementById('lvr-reasons');
+  const tEl=document.getElementById('lvr-tbody');
+  if(!kEl) return;
+  const all=S.leavers||[];
+  if(!all.length){
+    kEl.innerHTML='<span class="lvr-k">퇴직자 데이터가 없습니다. 스프레드시트 [퇴직자] 시트에 입력하면 자동 반영됩니다.</span>';
+    rEl.innerHTML=''; tEl.innerHTML='<tr><td colspan="9" class="empty" style="text-align:center;padding:20px;">데이터 없음</td></tr>';
+    return;
+  }
+  // 연도 필터 옵션 (최초 1회 구성)
+  const yearOf=v=>{const m=String(v||'').match(/(20\d{2})/);return m?m[1]:'';};
+  const yrSel=document.getElementById('lvrYear');
+  if(!lvrYearInit){
+    const yrs=[...new Set(all.map(l=>yearOf(l.퇴직일)).filter(Boolean))].sort().reverse();
+    yrs.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y+'년';yrSel.appendChild(o);});
+    lvrYearInit=true;
+  }
+  const yF=yrSel.value;
+  const list=(yF?all.filter(l=>yearOf(l.퇴직일)===yF):all)
+    .slice().sort((a,b)=>String(b.퇴직일||'').localeCompare(String(a.퇴직일||'')));
+
+  // ── KPI ──
+  const n=list.length;
+  const vol=list.filter(l=>String(l.퇴직구분||'').includes('자발')&&!String(l.퇴직구분||'').includes('비자발')).length;
+  const invol=list.filter(l=>String(l.퇴직구분||'').includes('비자발')).length;
+  const tenures=list.map(l=>tenureMonths(l.입사일,l.퇴직일)).filter(m=>m>0);
+  const avgTen=tenures.length?tenures.reduce((a,b)=>a+b,0)/tenures.length:0;
+  const avgTenStr=avgTen>0?(avgTen>=12?(Math.floor(avgTen/12))+'년 '+Math.round(avgTen%12)+'개월':Math.round(avgTen)+'개월'):'—';
+  const reY=list.filter(l=>reType(l.재입사가능여부)==='y').length;
+  kEl.innerHTML=[
+    `<span class="lvr-k"><strong>${n}</strong>명 ${yF?'('+yF+'년)':'(전체 누적)'}</span>`,
+    `<span class="lvr-k">자발 <strong style="color:#d97706;">${vol}</strong>명</span>`,
+    `<span class="lvr-k">비자발 <strong style="color:#dc2626;">${invol}</strong>명</span>`,
+    `<span class="lvr-k">평균 재직기간 <strong>${avgTenStr}</strong></span>`,
+    `<span class="lvr-k">재입사 가능 <strong style="color:#16a34a;">${reY}</strong>명 (${n>0?Math.round(reY/n*100):0}%)</span>`
+  ].join('');
+
+  // ── 사유 분포 ──
+  const rMap={};
+  list.forEach(l=>{const r=String(l.퇴사사유||'').trim()||'미입력';rMap[r]=(rMap[r]||0)+1;});
+  const rSorted=Object.entries(rMap).sort((a,b)=>b[1]-a[1]);
+  const rMax=rSorted.length?rSorted[0][1]:1;
+  rEl.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px;">퇴사 사유 분포</div>'
+    +rSorted.map(([r,c])=>`<div class="lvr-reason-bar">
+      <div class="lvr-reason-lbl" title="${r}">${r}</div>
+      <div style="flex:1;height:14px;background:var(--border);border-radius:3px;overflow:hidden;">
+        <div style="width:${(c/rMax*100).toFixed(0)}%;height:100%;background:#64748b;border-radius:3px;"></div>
+      </div>
+      <div style="width:52px;font-size:11px;font-weight:700;color:var(--text2);">${c}명 <span style="font-weight:500;color:var(--text3);">${Math.round(c/n*100)}%</span></div>
+    </div>`).join('');
+
+  // ── 테이블 ──
+  tEl.innerHTML=list.map(l=>{
+    const ten=diffStr(l.입사일,l.퇴직일)||'—';
+    const isVol=String(l.퇴직구분||'').includes('자발')&&!String(l.퇴직구분||'').includes('비자발');
+    const gubunChip=l.퇴직구분?`<span class="lvr-chip ${isVol?'lvr-vol':'lvr-invol'}">${l.퇴직구분}</span>`:'—';
+    const rt=reType(l.재입사가능여부);
+    const reChip=l.재입사가능여부?`<span class="lvr-chip ${rt==='y'?'lvr-re-y':rt==='n'?'lvr-re-n':'lvr-re-c'}">${l.재입사가능여부}</span>`:'—';
+    const reason=[l.퇴사사유,l.상세사유].filter(Boolean).join(' — ');
+    return `<tr>
+      <td style="white-space:nowrap;">${l.퇴직일||'—'}</td>
+      <td class="nm">${l.닉네임||l.성명||'—'}</td>
+      <td style="white-space:nowrap;">${[l.본부,l.팀].filter(Boolean).join(' · ')||'—'}</td>
+      <td style="white-space:nowrap;">${ten}</td>
+      <td>${gubunChip}</td>
+      <td style="max-width:260px;">${reason||'—'}</td>
+      <td style="white-space:nowrap;">${l.퇴직평가||'—'}</td>
+      <td>${reChip}</td>
+      <td style="max-width:180px;color:var(--text3);">${l.비고||''}</td>
+    </tr>`;
+  }).join('');
+}
+function tenureMonths(s,e){
+  if(!s||!e)return 0;
+  const a=new Date(String(s).replace(/\./g,'-')),b=new Date(String(e).replace(/\./g,'-'));
+  if(isNaN(a)||isNaN(b))return 0;
+  return Math.max(0,(b-a)/(1000*60*60*24*30.44));
+}
+function reType(v){
+  v=String(v||'').trim();
+  if(!v)return '';
+  if(v.includes('불가')||v==='N'||v==='n'||v==='X')return 'n';
+  if(v.includes('조건')||v.includes('보류')||v.includes('검토'))return 'c';
+  if(v.includes('가능')||v==='Y'||v==='y'||v==='O')return 'y';
+  return 'c';
 }
 
 // ═══════════════════════════════════════════════════
