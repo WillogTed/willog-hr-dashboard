@@ -412,6 +412,7 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
 .lvr-table td.nm{font-weight:700;color:var(--text);white-space:nowrap;text-align:center;}
 .lvr-table .col-date{white-space:nowrap;}
 .lvr-table .col-nick{color:var(--text3);text-align:center;}
+.lvr-table .col-pos{text-align:center;}
 .lvr-table .col-tenure{white-space:nowrap;text-align:center;}
 .lvr-table .col-gubun{text-align:center;}
 .lvr-table .col-re{text-align:center;}
@@ -609,12 +610,12 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
             <table class="lvr-table">
               <colgroup>
                 <col style="width:76px"><col style="width:56px"><col style="width:86px">
-                <col style="width:150px"><col style="width:58px"><col style="width:46px">
+                <col style="width:150px"><col style="width:70px"><col style="width:58px"><col style="width:46px">
                 <col><col style="width:92px"><col style="width:100px">
               </colgroup>
               <thead><tr>
-                <th class="ta-c">퇴직일</th><th class="ta-c">이름</th><th class="ta-c">닉네임(영문)</th><th class="ta-c">소속</th><th class="ta-c">재직기간</th><th class="ta-c">구분</th>
-                <th class="ta-c">퇴사 사유</th><th class="ta-c">재입사 가능여부</th><th>비고</th>
+                <th class="ta-c">퇴직일</th><th class="ta-c">이름</th><th class="ta-c">닉네임(영문)</th><th class="ta-c">소속</th><th class="ta-c">직책</th><th class="ta-c">재직기간</th><th class="ta-c">구분</th>
+                <th class="ta-c">퇴사 사유</th><th class="ta-c">재입사 가능여부</th><th class="ta-c">비고</th>
               </tr></thead>
               <tbody id="lvr-tbody"></tbody>
             </table>
@@ -1590,7 +1591,6 @@ function toggleLeaversCard(evt) {
 // ═══════════════════════════════════════════════════
 // 퇴직자 누적 관리 ([퇴직자] 시트 연동)
 // ═══════════════════════════════════════════════════
-let lvrYearInit=false;
 function renderLeavers(){
   const kEl=document.getElementById('lvr-kpis');
   const rEl=document.getElementById('lvr-reasons');
@@ -1602,14 +1602,19 @@ function renderLeavers(){
     rEl.innerHTML=''; tEl.innerHTML='<tr><td colspan="9" class="empty" style="text-align:center;padding:20px;">데이터 없음</td></tr>';
     return;
   }
-  // 연도 필터 옵션 (최초 1회 구성)
-  const yearOf=v=>{const m=String(v||'').match(/(20\d{2})/);return m?m[1]:'';};
+  // 연도 필터 옵션: 데이터에 존재하는 모든 연도를 매 렌더마다 재구성 (raw 추가 시 자동 반영)
+  const yearOf=v=>{
+    const m=String(v||'').match(/(20\d{2})/);
+    if(m) return m[1];
+    const d=new Date(String(v||'').replace(/\./g,'-'));
+    return isNaN(d)?'':String(d.getFullYear());
+  };
   const yrSel=document.getElementById('lvrYear');
-  if(!lvrYearInit){
-    const yrs=[...new Set(all.map(l=>yearOf(l.퇴직일)).filter(Boolean))].sort().reverse();
-    yrs.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y+'년';yrSel.appendChild(o);});
-    lvrYearInit=true;
-  }
+  const prevSel=yrSel.value;
+  const yrs=[...new Set(all.map(l=>yearOf(l.퇴직일)).filter(Boolean))].sort().reverse();
+  yrSel.innerHTML='<option value="">전체 연도</option>';
+  yrs.forEach(y=>{const o=document.createElement('option');o.value=y;o.textContent=y+'년';yrSel.appendChild(o);});
+  yrSel.value=yrs.includes(prevSel)?prevSel:'';
   const yF=yrSel.value;
   const list=(yF?all.filter(l=>yearOf(l.퇴직일)===yF):all)
     .slice().sort((a,b)=>String(b.퇴직일||'').localeCompare(String(a.퇴직일||'')));
@@ -1630,19 +1635,27 @@ function renderLeavers(){
     `<span class="lvr-k">재입사 가능 <strong style="color:#16a34a;">${reY}</strong>명 (${n>0?Math.round(reY/n*100):0}%)</span>`
   ].join('');
 
-  // ── 사유 분포 ──
-  const rMap={};
-  list.forEach(l=>{const r=String(l.퇴사사유||'').trim()||'미입력';rMap[r]=(rMap[r]||0)+1;});
-  const rSorted=Object.entries(rMap).sort((a,b)=>b[1]-a[1]);
-  const rMax=rSorted.length?rSorted[0][1]:1;
-  rEl.innerHTML='<div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px;">퇴사 사유 분포</div>'
-    +rSorted.map(([r,c])=>`<div class="lvr-reason-bar">
-      <div class="lvr-reason-lbl" title="${r}">${r}</div>
-      <div style="flex:1;height:14px;background:var(--border);border-radius:3px;overflow:hidden;">
-        <div style="width:${(c/rMax*100).toFixed(0)}%;height:100%;background:#64748b;border-radius:3px;"></div>
-      </div>
-      <div style="width:52px;font-size:11px;font-weight:700;color:var(--text2);">${c}명 <span style="font-weight:500;color:var(--text3);">${Math.round(c/n*100)}%</span></div>
-    </div>`).join('');
+  // ── 분포 차트: 좌(퇴사 사유) / 우(직책별) 2분할 ──
+  const mkDist=(title,keyFn,barColor)=>{
+    const m={};
+    list.forEach(l=>{const k=String(keyFn(l)||'').trim()||'미입력';m[k]=(m[k]||0)+1;});
+    const sorted=Object.entries(m).sort((a,b)=>b[1]-a[1]);
+    const mx=sorted.length?sorted[0][1]:1;
+    return `<div style="flex:1;min-width:280px;">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px;">${title}</div>
+      ${sorted.map(([r,c])=>`<div class="lvr-reason-bar">
+        <div class="lvr-reason-lbl" title="${r}">${r}</div>
+        <div style="flex:1;height:14px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div style="width:${(c/mx*100).toFixed(0)}%;height:100%;background:${barColor};border-radius:3px;"></div>
+        </div>
+        <div style="width:64px;font-size:11px;font-weight:700;color:var(--text2);">${c}명 <span style="font-weight:500;color:var(--text3);">${Math.round(c/n*100)}%</span></div>
+      </div>`).join('')}
+    </div>`;
+  };
+  rEl.innerHTML='<div style="display:flex;gap:28px;flex-wrap:wrap;">'
+    + mkDist('퇴사 사유 분포', l=>l.퇴사사유, '#64748b')
+    + mkDist('직책별 분포',   l=>l.직책,     '#94a3b8')
+    +'</div>';
 
   // ── 테이블 ──
   const esc=v=>String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -1662,6 +1675,7 @@ function renderLeavers(){
       <td class="nm">${esc(l.닉네임)||esc(l.성명)||'—'}</td>
       <td class="col-nick">${esc(l.성명)||'—'}</td>
       <td class="col-dept">${[esc(l.본부),esc(l.팀)].filter(Boolean).join('<br>· ')||'—'}</td>
+      <td class="col-pos">${esc(l.직책)||'—'}</td>
       <td class="col-tenure">${ten}</td>
       <td class="col-gubun">${gubunChip}</td>
       <td class="lvr-reason">${reasonHTML||'—'}</td>
@@ -2108,6 +2122,7 @@ function renderProfile(data){
   var interview = data.interview || [];
   var probInt   = data.probInt   || [];
   var probEval  = data.probEval  || [];
+  var probSurvey= data.probSurvey|| [];
   var history   = data.history   || [];
   var salary    = data.salary    || [];
   var evals     = data.evals     || [];
@@ -2294,7 +2309,24 @@ function renderProfile(data){
   document.getElementById('ptab-interview').innerHTML = ivHtml;
 
   // ── 수습 평가 탭 ──
-  var pbHtml = '<div class="prob-sec-title">▎ 수습 기간 면담 기록</div>';
+  // 수습 기간 목표 설문 ([설문_개인진단] 시트 연동, 질문 구성 변경에도 자동 대응)
+  var pbHtml = '<div class="prob-sec-title">▎ 수습 기간 목표 · 개인진단 설문</div>';
+  if (probSurvey.length) {
+    probSurvey.forEach(function(sv, si){
+      pbHtml += '<div class="prob-box">'
+        +'<div class="prob-hd"><div class="prob-title">설문 응답'+(probSurvey.length>1?' '+(si+1):'')+'</div>'
+        +'<div class="prob-date">'+(sv.제출일||'')+'</div></div>';
+      (sv.항목||[]).forEach(function(qa, qi){
+        pbHtml += '<div class="prob-item">'
+          +'<div class="prob-lbl">Q'+(qi+1)+'. '+qa[0]+'</div>'
+          +'<div class="prob-txt">'+nl2br(qa[1])+'</div></div>';
+      });
+      pbHtml += '</div>';
+    });
+  } else {
+    pbHtml += '<div class="prof-loading" style="padding:20px;">설문 응답이 없습니다.</div>';
+  }
+  pbHtml += '<div class="prob-sec-title" style="margin-top:16px;">▎ 수습 기간 면담 기록</div>';
   if (probInt.length) {
     probInt.forEach(function(p){
       var res = p['결과']||'';
