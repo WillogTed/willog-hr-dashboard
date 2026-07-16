@@ -2313,8 +2313,19 @@ function renderProfile(data){
   var pbHtml = '<div class="prob-sec-title">▎ 수습 기간 목표 · 개인진단 설문</div>';
   if (probSurvey.length) {
     probSurvey.forEach(function(sv, si){
+      // 입사일 → 제출일 경과일수로 "입사 D+N일 (N주차) 작성" 라벨 생성
+      var label = '설문 응답';
+      var jd = joinDate ? new Date(normDateStr(joinDate).replace(/\./g,'-')) : null;
+      var sd = sv.제출일 ? new Date(String(sv.제출일).replace(/\./g,'-')) : null;
+      if (jd && sd && !isNaN(jd) && !isNaN(sd)) {
+        var days = Math.round((sd - jd) / (1000*60*60*24));
+        if (days >= 0) {
+          var week = Math.floor(days/7) + 1;  // 입사 당일~6일차 = 1주차
+          label = '입사 D+' + days + '일 · ' + week + '주차 작성';
+        }
+      }
       pbHtml += '<div class="prob-box">'
-        +'<div class="prob-hd"><div class="prob-title">설문 응답'+(probSurvey.length>1?' '+(si+1):'')+'</div>'
+        +'<div class="prob-hd"><div class="prob-title">'+label+(probSurvey.length>1?' ('+(si+1)+')':'')+'</div>'
         +'<div class="prob-date">'+(sv.제출일||'')+'</div></div>';
       (sv.항목||[]).forEach(function(qa, qi){
         pbHtml += '<div class="prob-item">'
