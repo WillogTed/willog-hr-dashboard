@@ -661,6 +661,7 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
             <tbody id="cost-tbody"></tbody>
           </table>
         </div>
+        <div id="cost-notes" style="display:none;padding:10px 16px 14px;border-top:1px solid var(--line);"></div>
       </div>
 
       <!-- 본부/부서별 + 분포 -->
@@ -1878,8 +1879,13 @@ function renderCostTable() {
       ratioStr=`<span class="${r>200?'rd':r>100?'yel':'gn'}">${r.toFixed(0)}%</span>${ratioYoy}`;
     }
 
+    // 특이사항 (📌 배지 + 툴팁)
+    const note=String(m.특이사항||'').trim();
+    const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const noteBadge=note?` <span title="${esc(note)}" style="cursor:help;font-size:11px;">📌</span>`:'';
+
     return `<tr>
-      <td class="nm">${i+1}월</td>
+      <td class="nm" style="white-space:nowrap;">${i+1}월${noteBadge}</td>
       <td class="${d?'':'dash'}">${d?d.toLocaleString():'—'}${yoy(d,pd)}</td>
       <td class="${i1?'':'dash'}">${i1?i1.toLocaleString():'—'}${yoy(i1,pi1)}</td>
       <td class="${i2?'':'dash'}">${i2?i2.toLocaleString():'—'}${yoy(i2,pi2)}</td>
@@ -1898,6 +1904,29 @@ function renderCostTable() {
       <td class="${totOut?'rd bold':''}">${totOut||'<span class="dash">—</span>'}${yoyN(totOut,ptotOut)}</td>
     </tr>`;
   }).filter(Boolean).join('')||'<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--text3);">데이터 없음</td></tr>';
+
+  // ── 월별 특이사항 각주 리스트 (인건비 시트 '특이사항' 컬럼) ──
+  const noteEl=document.getElementById('cost-notes');
+  if(noteEl){
+    const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const notes=months.map((m,i)=>{
+      const t=m?String(m.특이사항||'').trim():'';
+      return t?{mo:i+1,txt:t}:null;
+    }).filter(Boolean);
+    if(notes.length){
+      noteEl.style.display='block';
+      noteEl.innerHTML=
+        `<div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px;">📌 월별 특이사항</div>`+
+        notes.map(n=>`
+          <div style="display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:12px;line-height:1.6;">
+            <span style="flex:none;font-weight:700;color:var(--text2);min-width:32px;">${n.mo}월</span>
+            <span style="color:var(--text2);white-space:pre-line;">${esc(n.txt)}</span>
+          </div>`).join('');
+    } else {
+      noteEl.style.display='none';
+      noteEl.innerHTML='';
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════
