@@ -527,18 +527,18 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
               <colgroup>
                 <col style="width:130px"><col><col style="width:86px">
                 <col style="width:56px"><col style="width:90px"><col style="width:74px">
-                <col style="width:52px"><col style="width:52px"><col style="width:52px">
+                <col style="width:70px"><col style="width:70px"><col style="width:150px">
               </colgroup>
               <thead><tr>
                 <th class="ta-c">이름</th><th class="ta-c">소속</th><th class="ta-c">입사일</th>
                 <th class="ta-c">주차</th><th class="ta-c">수습종료일</th><th class="ta-c">잔여</th>
-                <th class="ta-c">면담</th><th class="ta-c">평가</th><th class="ta-c">설문</th>
+                <th class="ta-c">HR 면담</th><th class="ta-c">수습 평가</th><th class="ta-c">입사 직후 개인 진단 설문</th>
               </tr></thead>
               <tbody id="prob-tbody"></tbody>
             </table>
           </div>
           <div style="padding:8px 18px 12px;font-size:11px;color:var(--text3);">
-            면담=[인사카드_수습면담] · 평가=[인사카드_수습평가] · 설문=[설문_개인진단] 기록 수 (사번 매칭) · 행 클릭 시 인사카드
+            대상: [인사카드_기본추가정보] 고용형태 '수습' 인원 (수습 통과 시 '정규직'으로 변경하면 자동 제외) · O/X = [인사카드_수습면담]/[인사카드_수습평가]/[설문_개인진단] 기록 유무 (사번 매칭) · 행 클릭 시 인사카드
           </div>
         </div>
       </div>
@@ -1651,7 +1651,10 @@ function renderHrEvents(){
   const tEl=document.getElementById('ev-tbody');
   const cEl=document.getElementById('ev-count');
   if(!tEl) return;
-  const evs=(S.hrEvents||[]).slice().sort((a,b)=>(a.dday??999)-(b.dday??999));
+  // 수습종료는 '수습 직원 현황' 섹션과 중복이므로 임박 이벤트에서 제외 (인사카드 배지에는 유지)
+  const evs=(S.hrEvents||[])
+    .filter(e=>String(e.유형||'').indexOf('수습종료')<0)
+    .slice().sort((a,b)=>(a.dday??999)-(b.dday??999));
 
   // 사번 → 조직도 정보 조인
   const empMap={};
@@ -1705,7 +1708,7 @@ function renderProbation(){
     const dd=p.dday;
     const ddTxt=dd===null?'—':(dd===0?'D-day':(dd>0?'D-'+dd:'종료 D+'+(-dd)));
     const rowStyle=dd!==null&&dd>=0&&dd<=7?'background:#fef2f2;color:#dc2626;':(dd!==null&&dd>=0&&dd<=14?'background:#fffbeb;color:#d97706;':(dd!==null&&dd<0?'color:var(--text3);':''));
-    const chk=n=>n>0?`<span style="color:#15803d;font-weight:700;">${n}</span>`:'<span style="color:var(--text3);">—</span>';
+    const chk=n=>n>0?'<span style="color:#15803d;font-weight:800;">O</span>':'<span style="color:#dc2626;font-weight:700;">X</span>';
     return `<tr onclick="openProfile('${String(p.사번).replace(/'/g,'')}')" style="cursor:pointer;${rowStyle}">
       <td class="ta-c" style="font-weight:600;">${name||'—'}</td>
       <td class="ta-c">${org}</td>
@@ -2479,7 +2482,7 @@ function renderProfile(data){
 
   // ── 수습 평가 탭 ──
   // 수습 기간 목표 설문 ([설문_개인진단] 시트 연동, 질문 구성 변경에도 자동 대응)
-  var pbHtml = '<div class="prob-sec-title">▎ 수습 기간 목표 · 개인진단 설문</div>';
+  var pbHtml = '<div class="prob-sec-title">▎ 입사 직후 개인 진단 설문</div>';
   if (probSurvey.length) {
     probSurvey.forEach(function(sv, si){
       // 입사일 → 제출일 경과일수로 "입사 D+N일 (N주차) 작성" 라벨 생성
