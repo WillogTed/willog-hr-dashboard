@@ -401,6 +401,9 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
 .gp-py{position:absolute;top:100%;transform:translateX(-50%);font-size:10px;line-height:1;margin-top:1px;}
 .gp-meta{display:flex;justify-content:space-between;font-size:10.5px;color:var(--text3);margin-top:14px;}
 
+/* ── 월 기준 비용 라인 ── */
+.mo-cost-line{font-size:11px;color:var(--text2);padding:6px 2px 2px;line-height:1.8;flex-wrap:wrap;}
+
 /* ── 퇴직자 관리 ── */
 .lvr-kpis{display:flex;gap:14px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--border);background:#fafbfc;}
 .lvr-k{font-size:11px;color:var(--text3);}
@@ -818,7 +821,7 @@ const BU_CLR = {
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
-let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{}, leavers:[], hrEvents:[], probation:[] };
+let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{}, deptMoCosts:{}, leavers:[], hrEvents:[], probation:[] };
 let G = { rev:150, ratio:60, pp:2, annualCostTarget:75 };
 
 // ═══════════════════════════════════════════════════
@@ -870,6 +873,7 @@ async function loadData() {
     S.insights   = data.insights   || null;
     S.deptBudgets= data.deptBudgets|| {};
     S.deptAiCost = data.deptAiCost || {};
+    S.deptMoCosts= data.deptMoCosts|| {};
     S.leavers    = data.leavers    || [];
     S.hrEvents   = data.hrEvents   || [];
     S.probation  = data.probation  || [];
@@ -950,6 +954,21 @@ function aiCostFor(name){
   if(S.deptAiCost){for(const k in S.deptAiCost){if(norm(k)===n) return S.deptAiCost[k]||0;}}
   if(S.deptBudgets){for(const k in S.deptBudgets){if(k.indexOf('ai_')===0 && norm(k.slice(3))===n) return S.deptBudgets[k]||0;}}
   return 0;
+}
+
+// 본부명으로 확장 월비용 항목 조회 — [설정] '월비용_항목명_본부명' 키 (만원/월), 공백 무시 매칭
+function moCostsFor(name){
+  const norm=v=>String(v||'').replace(/\s+/g,'');
+  const n=norm(name);
+  const out={};
+  if(!n || !S.deptMoCosts) return out;
+  for(const bu in S.deptMoCosts){
+    if(norm(bu)===n){
+      const items=S.deptMoCosts[bu];
+      for(const item in items) out[item]=items[item];
+    }
+  }
+  return out;
 }
 
 let ORG_PRINT_MODE=false;
@@ -1173,14 +1192,31 @@ function renderOrg() {
       const origBus = [...new Set(members.map(m=>m._origBu||'').filter(b=>b && !buMap[b]))];
       aiCostMan = origBus.reduce((sum,b)=>sum+aiCostFor(b), 0);
     }
-    const aiPerHead = (aiCostMan>0 && members.length>0) ? Math.round(aiCostMan/members.length*10) : 0; // 천원/인
 
+    // ── 헤더 라인: 인원 + 예산 대비 %만 간결하게 (금액 상세는 예산 바에 1회만 표시) ──
     const bustParts = [
       '<span class="bpart"><strong>'+members.length+'명</strong></span>',
-      totAnnSal>0 ? '<span class="bpart sal-info">연봉총액 <strong>'+fmtChun(totAnnSal)+'</strong></span>' : '',
-      budgetMan>0 ? '<span class="bpart sal-info">예산 '+fmtChun(budgetMan)+(budgetRatio?' (<span style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</span>)':'')+'</span>' : '',
-      aiCostMan>0 ? '<span class="bpart">🤖 AI 비용 <strong>'+fmtChun(aiCostMan)+'/월</strong></span>'+(aiPerHead>0?' <span class="bpart" style="color:var(--text3);">(인당 '+aiPerHead.toLocaleString()+'천원)</span>':'') : '',
+      budgetRatio ? '<span class="bpart sal-info">인건비 예산 대비 <strong style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</strong></span>' : '',
     ].filter(Boolean).join(' &nbsp;·&nbsp; ');
+
+    // ── 월 기준 비용 브레이크다운 (천원/월 · 인당 통일) ──
+    //    인건비 = 월고정 합계 / AI = 설정 ai_키 / 기타 항목 = 설정 '월비용_항목명_본부명' 키 자동 인식
+    const moItems = [];
+    if (totMoSal  > 0) moItems.push({name:'인건비', man:totMoSal,  mask:true });
+    if (aiCostMan > 0) moItems.push({name:'🤖 AI',  man:aiCostMan, mask:false});
+    const extraCosts = moCostsFor(bu);
+    Object.keys(extraCosts).forEach(k => { if (extraCosts[k] > 0) moItems.push({name:k, man:extraCosts[k], mask:false}); });
+
+    let moLineHtml = '';
+    if (moItems.length) {
+      const perH   = m => members.length>0 ? Math.round(m/members.length*10).toLocaleString() : '—';
+      const totMan = moItems.reduce((s,it)=>s+it.man,0);
+      const parts  = moItems.map(it =>
+        `<span class="bpart${it.mask?' sal-info':''}">${it.name} <strong>${fmtChun(it.man)}</strong> <span style="color:var(--text3);">(인당 ${perH(it.man)})</span></span>`);
+      const sumPart = moItems.length>1
+        ? ` &nbsp;⇒&nbsp; <span class="bpart sal-info">합계 <strong>${fmtChun(totMan)}</strong> <span style="color:var(--text3);">(인당 ${perH(totMan)})</span></span>` : '';
+      moLineHtml = `<div class="mo-cost-line"><span style="color:var(--text3);font-weight:600;">월 기준</span> &nbsp; ${parts.join(' &nbsp;·&nbsp; ')}${sumPart}</div>`;
+    }
 
     // 예산 막대그래프
     var budgetBarHtml = '';
@@ -1272,6 +1308,7 @@ function renderOrg() {
         <span class="bust">${bustParts}</span>
       </div>
       ${budgetBarHtml}
+      ${moLineHtml}
       <div class="obubody">${deptsHTML}</div>
     </div>`;
   }).join('');
