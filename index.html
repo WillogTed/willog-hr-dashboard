@@ -1713,7 +1713,9 @@ function renderHrEvents(){
     const ddTxt=dd===null?'—':(dd===0?'D-day':(dd>0?'D-'+dd:'D+'+(-dd)));
     const rowStyle=dd!==null&&dd<=5?'background:#fef2f2;color:#dc2626;':(dd!==null&&dd<=14?'background:#fffbeb;color:#d97706;':'');
     // 퇴사예정 배지의 "(퇴사일 ...)" 병기는 줄바꿈 + 보조 스타일로 분리
-    const badgeHtml=String(ev.배지||ev.유형||'').replace(/\s*\((퇴사일[^)]*)\)/,'<br><span style="font-weight:400;font-size:10.5px;opacity:.75;">($1)</span>');
+    const badgeHtml=String(ev.배지||ev.유형||'')
+      .replace(/\s*\((퇴사일[^)]*)\)/,'<br><span style="font-weight:400;font-size:10.5px;opacity:.75;">($1)</span>')
+      .replace(/\s*\((리프레시[^)]*)\)/,'<br><span style="font-weight:700;font-size:10.5px;color:#b45309;">🎁 $1</span>');
     return `<tr onclick="openProfile('${String(ev.사번).replace(/'/g,'')}')" style="cursor:pointer;${rowStyle}">
       <td class="ta-c" style="font-weight:600;line-height:1.5;"><span style="display:inline-block;text-align:left;">${badgeHtml}</span></td>
       <td class="ta-c">${name||'—'}</td>
@@ -1748,6 +1750,15 @@ function renderProbation(){
     const ddTxt=dd===null?'—':(dd===0?'D-day':(dd>0?'D-'+dd:'종료 D+'+(-dd)));
     const rowStyle=dd!==null&&dd>=0&&dd<=7?'background:#fef2f2;color:#dc2626;':(dd!==null&&dd>=0&&dd<=14?'background:#fffbeb;color:#d97706;':(dd!==null&&dd<0?'color:var(--text3);':''));
     const chk=n=>n>0?'<span style="color:#15803d;font-weight:800;">O</span>':'<span style="color:#dc2626;font-weight:700;">X</span>';
+    // 수습 평가: 진행됐으면 최종결과 배지로 표시 (통과=초록/연장=주황/해지=빨강)
+    let evalCell;
+    if((p.평가수||0)>0){
+      const r=String(p.평가결과||'').trim();
+      if(r.includes('통과'))      evalCell=`<span style="background:#dcfce7;color:#15803d;font-weight:700;font-size:10.5px;border-radius:4px;padding:1px 6px;white-space:nowrap;">O · ${r}</span>`;
+      else if(r.includes('연장')) evalCell=`<span style="background:#fef3c7;color:#b45309;font-weight:700;font-size:10.5px;border-radius:4px;padding:1px 6px;white-space:nowrap;">O · ${r}</span>`;
+      else if(r.includes('해지')) evalCell=`<span style="background:#fee2e2;color:#dc2626;font-weight:700;font-size:10.5px;border-radius:4px;padding:1px 6px;white-space:nowrap;">O · ${r}</span>`;
+      else                        evalCell=r?`<span style="color:#15803d;font-weight:700;font-size:11px;white-space:nowrap;">O · ${r}</span>`:chk(1);
+    } else evalCell=chk(0);
     return `<tr onclick="openProfile('${String(p.사번).replace(/'/g,'')}')" style="cursor:pointer;${rowStyle}">
       <td class="ta-c" style="font-weight:600;">${name||'—'}</td>
       <td class="ta-c">${org}</td>
@@ -1756,7 +1767,7 @@ function renderProbation(){
       <td class="ta-c">${p.수습종료일||'—'}</td>
       <td class="ta-c" style="font-weight:700;">${ddTxt}</td>
       <td class="ta-c">${chk(p.면담수)}</td>
-      <td class="ta-c">${chk(p.평가수)}</td>
+      <td class="ta-c">${evalCell}</td>
       <td class="ta-c">${chk(p.설문수)}</td>
     </tr>`;
   }).join('');
