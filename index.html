@@ -492,6 +492,57 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
         </div>
       </div>
 
+      <!-- 🔔 임박 이벤트 (접이식) v3.5 -->
+      <div class="card org-noprint" style="margin-bottom:14px;">
+        <div class="chdr" onclick="toggleCard('ev')" style="cursor:pointer;user-select:none;">
+          <div class="cttl"><span id="ev-arrow" style="display:inline-block;width:13px;">▸</span>🔔 임박 이벤트 <span id="ev-count" style="font-size:12px;font-weight:600;color:var(--text2);"></span></div>
+          <span style="font-size:11px;color:var(--text3);">[인사카드_이벤트알림] 자동 연동 · 매일 오전 9시 갱신</span>
+        </div>
+        <div id="ev-body" style="display:none;">
+          <div class="cbody" style="overflow-x:auto;padding:0;">
+            <table class="lvr-table">
+              <colgroup>
+                <col style="width:160px"><col style="width:130px"><col>
+                <col style="width:90px"><col style="width:64px">
+              </colgroup>
+              <thead><tr>
+                <th class="ta-c">이벤트</th><th class="ta-c">이름</th><th class="ta-c">소속</th>
+                <th class="ta-c">기준일자</th><th class="ta-c">D-day</th>
+              </tr></thead>
+              <tbody id="ev-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🎓 수습 직원 현황 (접이식) v3.5 -->
+      <div class="card org-noprint" style="margin-bottom:14px;">
+        <div class="chdr" onclick="toggleCard('prob')" style="cursor:pointer;user-select:none;">
+          <div class="cttl"><span id="prob-arrow" style="display:inline-block;width:13px;">▸</span>🎓 수습 직원 현황 <span id="prob-count" style="font-size:12px;font-weight:600;color:var(--text2);"></span></div>
+          <span style="font-size:11px;color:var(--text3);">조직도·인사카드 시트 자동 계산 (수습종료일 기준)</span>
+        </div>
+        <div id="prob-body" style="display:none;">
+          <div class="cbody" style="overflow-x:auto;padding:0;">
+            <table class="lvr-table">
+              <colgroup>
+                <col style="width:130px"><col><col style="width:86px">
+                <col style="width:56px"><col style="width:90px"><col style="width:74px">
+                <col style="width:52px"><col style="width:52px"><col style="width:52px">
+              </colgroup>
+              <thead><tr>
+                <th class="ta-c">이름</th><th class="ta-c">소속</th><th class="ta-c">입사일</th>
+                <th class="ta-c">주차</th><th class="ta-c">수습종료일</th><th class="ta-c">잔여</th>
+                <th class="ta-c">면담</th><th class="ta-c">평가</th><th class="ta-c">설문</th>
+              </tr></thead>
+              <tbody id="prob-tbody"></tbody>
+            </table>
+          </div>
+          <div style="padding:8px 18px 12px;font-size:11px;color:var(--text3);">
+            면담=[인사카드_수습면담] · 평가=[인사카드_수습평가] · 설문=[설문_개인진단] 기록 수 (사번 매칭) · 행 클릭 시 인사카드
+          </div>
+        </div>
+      </div>
+
       <!-- 신호등 범례 + 필터 -->
       <div class="fb org-noprint" style="flex-wrap:wrap;gap:8px;margin-bottom:12px;">
         <div class="fc gap8" style="font-size:11px;color:var(--text2);flex-wrap:wrap;">
@@ -767,7 +818,7 @@ const BU_CLR = {
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
-let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{}, leavers:[] };
+let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{}, leavers:[], hrEvents:[], probation:[] };
 let G = { rev:150, ratio:60, pp:2, annualCostTarget:75 };
 
 // ═══════════════════════════════════════════════════
@@ -820,6 +871,8 @@ async function loadData() {
     S.deptBudgets= data.deptBudgets|| {};
     S.deptAiCost = data.deptAiCost || {};
     S.leavers    = data.leavers    || [];
+    S.hrEvents   = data.hrEvents   || [];
+    S.probation  = data.probation  || [];
 
     if (data.revenue !== undefined)         G.rev              = Number(data.revenue)         || 150;
     if (data.targetCostRatio !== undefined) G.ratio            = Number(data.targetCostRatio) || 60;
@@ -1022,6 +1075,8 @@ function renderAll() {
   renderCostTable();
   renderDeptChart();
   renderLeavers();
+  renderHrEvents();
+  renderProbation();
   renderTenureChart();
   renderLevelChart();
 }
@@ -1578,6 +1633,91 @@ function ytdBar(lbl,ann,color,pct){
       <div style="position:absolute;left:8px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:#fff;">${ann}</div>
     </div>
   </div>`;
+}
+
+// 접이식 카드 공용 토글 (ev / prob)
+function toggleCard(key) {
+  const body=document.getElementById(key+'-body');
+  const arrow=document.getElementById(key+'-arrow');
+  const hidden=body.style.display==='none';
+  body.style.display=hidden?'block':'none';
+  arrow.textContent=hidden?'▾':'▸';
+}
+
+// ═══════════════════════════════════════════════════
+// 🔔 임박 이벤트 ([인사카드_이벤트알림] 시트 연동) v3.5
+// ═══════════════════════════════════════════════════
+function renderHrEvents(){
+  const tEl=document.getElementById('ev-tbody');
+  const cEl=document.getElementById('ev-count');
+  if(!tEl) return;
+  const evs=(S.hrEvents||[]).slice().sort((a,b)=>(a.dday??999)-(b.dday??999));
+
+  // 사번 → 조직도 정보 조인
+  const empMap={};
+  S.emps.forEach(e=>{ if(e.사번) empMap[String(e.사번).trim()]=e; });
+
+  if(!evs.length){
+    cEl.textContent='';
+    tEl.innerHTML='<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--text3);">오늘 기준 임박 이벤트 없음</td></tr>';
+    return;
+  }
+  const urgent=evs.filter(e=>e.dday!==null&&e.dday<=7).length;
+  cEl.textContent=`— ${evs.length}건${urgent?` · 7일 이내 ${urgent}건`:''}`;
+
+  tEl.innerHTML=evs.map(ev=>{
+    const emp=empMap[String(ev.사번||'').trim()]||{};
+    const name=[ev.닉네임||emp.닉네임, emp.성명].filter(Boolean).join(' ');
+    const org=[emp.본부, emp.팀].filter(Boolean).join(' · ')||'—';
+    const dd=ev.dday;
+    const ddTxt=dd===null?'—':(dd===0?'D-day':(dd>0?'D-'+dd:'D+'+(-dd)));
+    const rowStyle=dd!==null&&dd<=5?'background:#fef2f2;color:#dc2626;':(dd!==null&&dd<=14?'background:#fffbeb;color:#d97706;':'');
+    return `<tr onclick="openProfile('${String(ev.사번).replace(/'/g,'')}')" style="cursor:pointer;${rowStyle}">
+      <td style="font-weight:600;">${ev.배지||ev.유형||''}</td>
+      <td class="ta-c">${name||'—'}</td>
+      <td class="ta-c">${org}</td>
+      <td class="ta-c">${ev.기준일||'—'}</td>
+      <td class="ta-c" style="font-weight:700;">${ddTxt}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════
+// 🎓 수습 직원 현황 (자동 계산) v3.5
+// ═══════════════════════════════════════════════════
+function renderProbation(){
+  const tEl=document.getElementById('prob-tbody');
+  const cEl=document.getElementById('prob-count');
+  if(!tEl) return;
+  const list=S.probation||[];
+
+  if(!list.length){
+    cEl.textContent='';
+    tEl.innerHTML='<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--text3);">현재 수습 중인 직원 없음</td></tr>';
+    return;
+  }
+  const urgent=list.filter(p=>p.dday!==null&&p.dday>=0&&p.dday<=14).length;
+  cEl.textContent=`— ${list.length}명${urgent?` · 종료 임박(14일 이내) ${urgent}명`:''}`;
+
+  tEl.innerHTML=list.map(p=>{
+    const name=[p.닉네임,p.성명].filter(Boolean).join(' ');
+    const org=[p.본부,p.팀||p.부서].filter(Boolean).join(' · ')||'—';
+    const dd=p.dday;
+    const ddTxt=dd===null?'—':(dd===0?'D-day':(dd>0?'D-'+dd:'종료 D+'+(-dd)));
+    const rowStyle=dd!==null&&dd>=0&&dd<=7?'background:#fef2f2;color:#dc2626;':(dd!==null&&dd>=0&&dd<=14?'background:#fffbeb;color:#d97706;':(dd!==null&&dd<0?'color:var(--text3);':''));
+    const chk=n=>n>0?`<span style="color:#15803d;font-weight:700;">${n}</span>`:'<span style="color:var(--text3);">—</span>';
+    return `<tr onclick="openProfile('${String(p.사번).replace(/'/g,'')}')" style="cursor:pointer;${rowStyle}">
+      <td class="ta-c" style="font-weight:600;">${name||'—'}</td>
+      <td class="ta-c">${org}</td>
+      <td class="ta-c">${p.입사일||'—'}</td>
+      <td class="ta-c">${p.주차!==null&&p.주차!==undefined?p.주차+'주차':'—'}</td>
+      <td class="ta-c">${p.수습종료일||'—'}</td>
+      <td class="ta-c" style="font-weight:700;">${ddTxt}</td>
+      <td class="ta-c">${chk(p.면담수)}</td>
+      <td class="ta-c">${chk(p.평가수)}</td>
+      <td class="ta-c">${chk(p.설문수)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function toggleLeaversCard(evt) {
