@@ -1712,8 +1712,10 @@ function renderHrEvents(){
     const dd=ev.dday;
     const ddTxt=dd===null?'—':(dd===0?'D-day':(dd>0?'D-'+dd:'D+'+(-dd)));
     const rowStyle=dd!==null&&dd<=5?'background:#fef2f2;color:#dc2626;':(dd!==null&&dd<=14?'background:#fffbeb;color:#d97706;':'');
+    // 퇴사예정 배지의 "(퇴사일 ...)" 병기는 줄바꿈 + 보조 스타일로 분리
+    const badgeHtml=String(ev.배지||ev.유형||'').replace(/\s*\((퇴사일[^)]*)\)/,'<br><span style="font-weight:400;font-size:10.5px;opacity:.75;">($1)</span>');
     return `<tr onclick="openProfile('${String(ev.사번).replace(/'/g,'')}')" style="cursor:pointer;${rowStyle}">
-      <td style="font-weight:600;">${ev.배지||ev.유형||''}</td>
+      <td style="font-weight:600;line-height:1.5;">${badgeHtml}</td>
       <td class="ta-c">${name||'—'}</td>
       <td class="ta-c">${org}</td>
       <td class="ta-c">${ev.기준일||'—'}</td>
