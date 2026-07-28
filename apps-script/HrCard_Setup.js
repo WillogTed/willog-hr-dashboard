@@ -981,20 +981,24 @@ function autoConvertProbation() {
 
 // ================================================================
 // (선택) 매일 자동 실행 트리거 등록 — 한 번만 실행
+// v2.6: 인사발령 자동 동기화(syncAppointments) 추가 → 총 4건
 // v2.5: 이벤트 알림 + 입퇴사 집계 + 수습 자동 전환, 3건 모두 등록
+// ※ 재실행해도 안전 (동일 함수의 기존 트리거를 지우고 새로 등록)
 // ================================================================
 function createDailyTrigger() {
+  var HANDLERS = ["autoConvertProbation", "refreshHrCardEvents", "refreshHeadcount", "syncAppointments"];
+
   // 기존 트리거 중복 방지
   ScriptApp.getProjectTriggers().forEach(function(t) {
-    var fn = t.getHandlerFunction();
-    if (fn === "refreshHrCardEvents" || fn === "refreshHeadcount" || fn === "autoConvertProbation") {
-      ScriptApp.deleteTrigger(t);
-    }
+    if (HANDLERS.indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger("autoConvertProbation").timeBased().everyDays(1).atHour(8).create(); // 전환 먼저
+  ScriptApp.newTrigger("syncAppointments").timeBased().everyDays(1).atHour(9).create();     // ★ v2.6
   ScriptApp.newTrigger("refreshHrCardEvents").timeBased().everyDays(1).atHour(9).create();
   ScriptApp.newTrigger("refreshHeadcount").timeBased().everyDays(1).atHour(9).create();
-  var msg = "✅ 자동 갱신 트리거 3건이 등록되었습니다. (오전 8시 수습→정규직 전환 → 오전 9시 이벤트 알림 + 입퇴사·재직자 집계)";
+  var msg = "✅ 자동 갱신 트리거 4건이 등록되었습니다.\n" +
+            "  오전 8시 — 수습→정규직 전환\n" +
+            "  오전 9시 — 인사발령 동기화 / 이벤트 알림 / 입퇴사·재직자 집계";
   // 스프레드시트 UI가 연결되지 않은 컨텍스트(편집기 단독 실행 등)에서는 알림창 대신 로그로 안내
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) { Logger.log(msg); }
 }
