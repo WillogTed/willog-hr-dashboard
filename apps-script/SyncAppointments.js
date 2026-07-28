@@ -104,6 +104,165 @@ function listGonggoTabs() {
 
 
 // ================================================================
+//  [유지보수] 기존 [인사카드_발령] 정본 유형 표기 일괄 정규화
+//  2026-07-28 Ted 승인 계획 — [발령_프리뷰] ③ 검수 결과 반영
+//
+//  ① "팀 이동 / 팀 개편 / 팀명 변경"  → "부서이동"   (복합유형은 구성요소 단위로 치환 후 중복 제거)
+//     "직책변경" 이면서 변경전_직책=팀원, 변경후_직책=팀장 → "직책승격"
+//     유형이 바뀐 행은 비고 **앞**에 "[원표기: 원래유형]" 을 붙인다
+//  ② 수정한 행 비고 **끝**에 " #확정" 추가 (이후 syncAppointments 의 ③ 알림에서 제외됨)
+//  ③ 250010047 / 2026.01.26 (전략 고문) — 유형은 그대로 두고 #확정만
+//  ④ 240010004 · 210010008 / 2026.03.16 (26-03호 TFT) — 유형을 "겸직"으로
+//  + 사번·발령일·정규화유형이 같은 행이 이미 있으면 비고에 "중복의심(N행과 동일)" 표시 (삭제는 하지 않음)
+//
+//  실행:  normalizeAppointmentTypes()       … dry-run. 변경 예정 목록만 로그 (쓰기 없음)
+//         normalizeAppointmentTypesApply()  … 실제 반영
+//  안전:  - 발령유형·비고 **두 셀만** 쓴다. 나머지 컬럼·행은 손대지 않고 삭제도 없음
+//         - 비고에 이미 #확정 이 있는 행은 건너뜀 → 재실행해도 중복 적용 안 됨(멱등)
+//         - 실행 전 [인사카드_발령] 사본 백업 권장
+// ================================================================
+var SA_TEAM_MOVE_TOKENS = ['팀이동', '팀명변경', '팀개편', '팀명개편', '팀재편'];
+var SA_RULE_TFT  = { '240010004|2026.03.16': 1, '210010008|2026.03.16': 1 }; // ④ → 겸직
+var SA_RULE_KEEP = { '250010047|2026.01.26': 1 };                            // ③ 유형 유지
+
+function normalizeAppointmentTypes()      { return sa_normalizeTypes(true); }
+function normalizeAppointmentTypesApply() { return sa_normalizeTypes(false); }
+
+function sa_normalizeTypes(dryRun) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) { Logger.log('⛔ 다른 실행이 진행 중입니다. 중단.'); return; }
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(SA_APPT_SHEET);
+    if (!sh) { Logger.log('[' + SA_APPT_SHEET + '] 시트 없음'); return; }
+
+    var data = sh.getDataRange().getValues();
+    var h = sa_findHeader(data, ['발령유형']) || sa_findHeader(data, ['사번']);
+    if (!h) { Logger.log('[' + SA_APPT_SHEET + '] 헤더 탐지 실패'); return; }
+
+    var c = {
+      사번:   sa_findCol(h.hdr, ['사번']),
+      닉네임: sa_findCol(h.hdr, ['닉네임']),
+      유형:   sa_findCol(h.hdr, ['발령유형']),
+      발령일: sa_findCol(h.hdr, ['발령일']),
+      전직책: sa_findCol(h.hdr, ['변경전_직책', '변경전 직책']),
+      후직책: sa_findCol(h.hdr, ['변경후_직책', '변경후 직책']),
+      비고:   sa_findCol(h.hdr, ['비고'])
+    };
+    if (c.사번 < 0 || c.유형 < 0 || c.발령일 < 0 || c.비고 < 0) {
+      Logger.log('필수 컬럼(사번/발령유형/발령일/비고) 탐지 실패 → 중단'); return;
+    }
+
+    var g = function(row, idx) { return idx >= 0 ? String(row[idx] || '').trim() : ''; };
+
+    // ── 1차 스캔: 모든 데이터 행의 정규화 유형을 구해 중복(사번|발령일|정규화유형) 최초 행 기록
+    var firstSeen = {}, items = [];
+    for (var i = h.idx + 1; i < data.length; i++) {
+      var row = data[i];
+      var sabun = g(row, c.사번);
+      if (!sabun || !/^\d{6,}$/.test(sabun)) continue;    // 설명행·공란 스킵
+
+      var it = {
+        sheetRow: i + 1,
+        sabun: sabun,
+        nick: g(row, c.닉네임),
+        type: g(row, c.유형),
+        date: sa_toDateStr(row[c.발령일]),
+        bPos: g(row, c.전직책),
+        aPos: g(row, c.후직책),
+        note: g(row, c.비고)
+      };
+      var res = sa_normType(it);
+      it.newType = res.type;
+      it.why = res.why;
+
+      var dk = it.sabun + '|' + it.date + '|' + it.newType;
+      if (firstSeen[dk] === undefined) firstSeen[dk] = it.sheetRow;
+      else it.dupOf = firstSeen[dk];
+
+      items.push(it);
+    }
+
+    // ── 2차: 실제 변경 계획 수립
+    var plan = [], settled = 0;
+    items.forEach(function(it) {
+      if (it.note.indexOf('#확정') >= 0) { settled++; return; }   // 이미 처리된 행
+
+      var typeChanged = (it.newType !== it.type);
+      var isKeep = !!SA_RULE_KEEP[it.sabun + '|' + it.date];
+      if (!typeChanged && !isKeep && !it.dupOf) return;           // 손댈 이유 없음
+
+      var note = it.note;
+      if (typeChanged) note = '[원표기: ' + it.type + '] ' + note;
+      if (it.dupOf) note = note + (note.slice(-1) === ' ' ? '' : ' ') + '중복의심(' + it.dupOf + '행과 동일)';
+      note = (note + ' #확정').replace(/\s+/g, ' ').trim();
+
+      plan.push({ it: it, newNote: note, typeChanged: typeChanged });
+    });
+
+    // ── 쓰기 (발령유형·비고 두 셀만) ─────────────────────────
+    if (!dryRun) {
+      plan.forEach(function(p) {
+        if (p.typeChanged) sh.getRange(p.it.sheetRow, c.유형 + 1).setValue(p.it.newType);
+        sh.getRange(p.it.sheetRow, c.비고 + 1).setValue(p.newNote);
+      });
+    }
+
+    // ── 로그 ────────────────────────────────────────────────
+    var log = [];
+    log.push(dryRun ? '🔍 [DRY-RUN] 쓰기 없음 — 실제 반영은 normalizeAppointmentTypesApply()'
+                    : '✍️ [' + SA_APPT_SHEET + '] 유형 표기 정규화 반영 완료');
+    log.push('데이터 ' + items.length + '행 / 변경 ' + plan.length + '행 / 이미 #확정 ' + settled + '행 건너뜀');
+    log.push('');
+    plan.forEach(function(p) {
+      var it = p.it;
+      log.push(it.sheetRow + '행 ' + it.sabun + ' ' + (it.nick || '') + ' ' + it.date +
+               ' | ' + it.type + (p.typeChanged ? ' → ' + it.newType : ' (유형 유지)') +
+               (it.why.length ? '  [' + it.why.join('; ') + ']' : '') +
+               (it.dupOf ? '  [중복의심 ' + it.dupOf + '행]' : ''));
+      log.push('      비고: "' + it.note + '"  →  "' + p.newNote + '"');
+    });
+    Logger.log('발령유형 표기 정규화\n' + log.join('\n'));
+
+    return { total: items.length, changed: plan.length, settledSkipped: settled, dryRun: !!dryRun };
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** 한 행의 정규화 유형 계산 → {type, why} */
+function sa_normType(it) {
+  var key = it.sabun + '|' + it.date;
+  if (SA_RULE_TFT[key])  return { type: '겸직', why: ['④ 26-03호 TFT 겸직'] };
+  if (SA_RULE_KEEP[key]) return { type: it.type, why: ['③ 유형 유지 (#확정만)'] };
+
+  var why = [], parts = String(it.type).split('/'), out = [];
+  parts.forEach(function(raw) {
+    var p = raw.trim();
+    if (!p) return;
+    var flat = p.replace(/\s/g, '');
+    if (SA_TEAM_MOVE_TOKENS.indexOf(flat) >= 0) {
+      out.push('부서이동');
+      why.push('①a "' + p + '" → 부서이동');
+    } else if (flat === '직책변경' && it.bPos === '팀원' && it.aPos === '팀장') {
+      out.push('직책승격');
+      why.push('①b 직책변경(팀원→팀장) → 직책승격');
+    } else if (flat === '직책변경') {
+      out.push('직책변경');   // 공백 표기 "직책 변경" 정규화
+    } else {
+      out.push(p);
+    }
+  });
+
+  var dedup = [];
+  out.forEach(function(p) { if (dedup.indexOf(p) < 0) dedup.push(p); });
+  return { type: dedup.join('/'), why: why };
+}
+
+
+// ================================================================
 //  본체
 // ================================================================
 function sa_run(opts) {
