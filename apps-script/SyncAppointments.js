@@ -263,6 +263,135 @@ function sa_normType(it) {
 
 
 // ================================================================
+//  [유지보수] ③ 표기 상이 검수 완료분 일괄 #확정
+//  2026-07-28 Ted 검수 — "전부 기존 행이 정본". normalize 적용 후 남은 ③ 15건(기존 14행).
+//
+//  ※ 행 번호가 아니라 **사번 + 발령일**로 매칭한다.
+//     ([인사카드_발령] 2행 설명행 포함 여부에 따라 행 번호가 1 어긋나는 사례가 있었음)
+//  - 기본은 비고 끝에 " #확정" 만 추가 (유형·소속 무변경)
+//  - newType 이 지정된 항목만 발령유형을 바꾸고 비고 앞에 "[원표기: 원래유형]" 을 붙인다
+//  - 이미 #확정 이 있는 행은 건너뜀 → 재실행해도 중복 적용 안 됨(멱등)
+//  - 발령유형·비고 두 셀만 쓰고 행 삭제·추가는 없음
+//
+//  실행:  confirmReviewedAppointments()       … dry-run (쓰기 없음)
+//         confirmReviewedAppointmentsApply()  … 실제 반영
+// ================================================================
+var SA_REVIEWED_CONFIRMED = [
+  { sabun: '210010008', date: '2025.04.08' },                    // Jay
+  { sabun: '230010011', date: '2025.04.08' },                    // Don
+  { sabun: '240010001', date: '2025.04.08' },                    // Emma
+  { sabun: '250010028', date: '2025.04.28', newType: '겸직' },   // Joy(함현재) — 부서이동 → 겸직
+  { sabun: '230010024', date: '2025.07.14' },                    // Justin (공고 후보 2건이 이 행 하나에 매칭)
+  { sabun: '250010001', date: '2025.08.18' },                    // Gun
+  { sabun: '240010030', date: '2025.11.24' },                    // Grey
+  { sabun: '250010003', date: '2025.11.24' },                    // Coco
+  { sabun: '250010007', date: '2025.11.24' },                    // Sup
+  { sabun: '250010035', date: '2025.11.24' },                    // Evan
+  { sabun: '250010041', date: '2025.11.24' },                    // Sean (리브랜딩 TF)
+  { sabun: '250010042', date: '2025.11.24' },                    // Miley
+  { sabun: '250010055', date: '2026.05.18' },                    // Felix
+  { sabun: '250010041', date: '2026.06.08' }                     // Sean (Head of Product)
+];
+
+function confirmReviewedAppointments()      { return sa_confirmReviewed(true); }
+function confirmReviewedAppointmentsApply() { return sa_confirmReviewed(false); }
+
+function sa_confirmReviewed(dryRun) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) { Logger.log('⛔ 다른 실행이 진행 중입니다. 중단.'); return; }
+
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(SA_APPT_SHEET);
+    if (!sh) { Logger.log('[' + SA_APPT_SHEET + '] 시트 없음'); return; }
+
+    var data = sh.getDataRange().getValues();
+    var h = sa_findHeader(data, ['발령유형']) || sa_findHeader(data, ['사번']);
+    if (!h) { Logger.log('[' + SA_APPT_SHEET + '] 헤더 탐지 실패'); return; }
+
+    var c = {
+      사번:   sa_findCol(h.hdr, ['사번']),
+      닉네임: sa_findCol(h.hdr, ['닉네임']),
+      유형:   sa_findCol(h.hdr, ['발령유형']),
+      발령일: sa_findCol(h.hdr, ['발령일']),
+      비고:   sa_findCol(h.hdr, ['비고'])
+    };
+    if (c.사번 < 0 || c.유형 < 0 || c.발령일 < 0 || c.비고 < 0) {
+      Logger.log('필수 컬럼(사번/발령유형/발령일/비고) 탐지 실패 → 중단'); return;
+    }
+
+    // 사번|발령일 → 시트 행 목록
+    var index = {};
+    for (var i = h.idx + 1; i < data.length; i++) {
+      var sb = String(data[i][c.사번] || '').trim();
+      if (!sb || !/^\d{6,}$/.test(sb)) continue;
+      var k = sb + '|' + sa_toDateStr(data[i][c.발령일]);
+      if (!index[k]) index[k] = [];
+      index[k].push(i);
+    }
+
+    var plan = [], settled = [], missing = [], multi = [];
+    SA_REVIEWED_CONFIRMED.forEach(function(t) {
+      var k = t.sabun + '|' + t.date;
+      var hits = index[k];
+      if (!hits || !hits.length) { missing.push(k); return; }
+      if (hits.length > 1) multi.push(k + ' → ' + hits.length + '행 (' + hits.map(function(x){ return x+1; }).join(',') + ') 전부 적용');
+
+      hits.forEach(function(i) {
+        var row = data[i];
+        var note = String(row[c.비고] || '').trim();
+        var type = String(row[c.유형] || '').trim();
+        if (note.indexOf('#확정') >= 0) { settled.push(k + ' (' + (i + 1) + '행)'); return; }
+
+        var newType = t.newType || type;
+        var typeChanged = (newType !== type);
+        var newNote = note;
+        if (typeChanged) newNote = '[원표기: ' + type + '] ' + newNote;
+        newNote = (newNote + ' #확정').replace(/\s+/g, ' ').trim();
+
+        plan.push({
+          sheetRow: i + 1,
+          sabun: t.sabun,
+          nick: c.닉네임 >= 0 ? String(row[c.닉네임] || '').trim() : '',
+          date: t.date,
+          type: type, newType: newType, typeChanged: typeChanged,
+          note: note, newNote: newNote
+        });
+      });
+    });
+
+    if (!dryRun) {
+      plan.forEach(function(p) {
+        if (p.typeChanged) sh.getRange(p.sheetRow, c.유형 + 1).setValue(p.newType);
+        sh.getRange(p.sheetRow, c.비고 + 1).setValue(p.newNote);
+      });
+    }
+
+    var log = [];
+    log.push(dryRun ? '🔍 [DRY-RUN] 쓰기 없음 — 실제 반영은 confirmReviewedAppointmentsApply()'
+                    : '✍️ [' + SA_APPT_SHEET + '] 검수 완료분 #확정 반영');
+    log.push('대상 ' + SA_REVIEWED_CONFIRMED.length + '건 / 변경 ' + plan.length + '행 / 이미 #확정 ' + settled.length + '행');
+    log.push('');
+    plan.forEach(function(p) {
+      log.push(p.sheetRow + '행 ' + p.sabun + ' ' + (p.nick || '') + ' ' + p.date +
+               ' | ' + p.type + (p.typeChanged ? ' → ' + p.newType : ' (유형 유지)'));
+      log.push('      비고: "' + p.note + '"  →  "' + p.newNote + '"');
+    });
+    if (multi.length)    { log.push(''); log.push('ℹ️ 사번+발령일이 여러 행에 해당: ' + multi.join(' / ')); }
+    if (settled.length)  { log.push(''); log.push('· 이미 #확정 (건너뜀): ' + settled.join(', ')); }
+    if (missing.length)  { log.push(''); log.push('⚠️ 시트에서 찾지 못한 대상: ' + missing.join(', ') + ' — 사번·발령일 확인 필요'); }
+    Logger.log('검수 완료분 #확정 처리\n' + log.join('\n'));
+
+    return { targets: SA_REVIEWED_CONFIRMED.length, changed: plan.length,
+             settledSkipped: settled.length, missing: missing.length, dryRun: !!dryRun };
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+
+// ================================================================
 //  본체
 // ================================================================
 function sa_run(opts) {
