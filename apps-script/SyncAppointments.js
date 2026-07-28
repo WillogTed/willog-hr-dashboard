@@ -1,27 +1,39 @@
 // ================================================================
 // 윌로그 인사발령 자동 동기화 — SyncAppointments.gs
+// v1.1 (2026-07-28) : 중복 판정 2단계화 + [발령_프리뷰] 시트 출력
 // v1.0 (2026-07-28) : CLAUDE.md 6-1 + 6-2 구현
 //
 //  syncAppointments()      … 트리거 진입점. 아래 3종을 한 배치로 처리 후 append
 //    ① 공고 원천 시트 → [인사카드_발령]  (6-1)
 //    ② [조직도]/[퇴직자] 입사일 → '입사' 발령 자동 생성 (6-2)
 //    ③ [퇴직자] 퇴직일 → '퇴사' 발령 자동 생성 (6-2)
-//  previewAppointments()   … ★ 쓰기 없이 파싱/추가예정 건만 로그 (첫 실행 전 검증용)
+//  previewAppointments()   … ★ 쓰기 없이 전체 결과를 [발령_프리뷰] 시트에 기록 (첫 실행 전 검증용)
+//  previewAppointmentsLogOnly() … 프리뷰 시트 없이 로그로만
 //  syncBalryeong()         … 공고 동기화(①)만 단독 실행
+//  listGonggoTabs()        … 공고 시트 탭 목록 (제외 탭 판별용)
 //
-//  중복 방지 키: 사번 | 발령일 | 발령유형 | 변경후_소속  (공백·기호·대소문자 무시)
-//    + '입사'는 사번당 1건, '퇴사'도 사번당 1건으로 추가 제한 (수기 입력분 보호)
+//  ★ 중복 판정 2단계 (v1.1) — [인사카드_발령] 기존 행은 사람이 검수한 정본이라
+//     파서 표기와 어휘·띄어쓰기가 다르다 (시트 "팀 이동/팀 개편/팀명 변경" ↔ 파서 "부서이동",
+//     시트 "직책변경" ↔ 파서 "직책승격", "Pulse1" ↔ "Pulse 1", "Streamline Work" ↔ "Streamline Works").
+//     1차(엄격) 사번|발령일|발령유형|변경후_소속 → 일치하면 이미 반영된 것으로 보고 조용히 스킵
+//     2차(느슨) 사번|발령일               → 기존 행과 일치하면 **자동 반영하지 않고**
+//                                            '표기 상이 — 수동확인' 목록으로만 올림
+//     같은 날 같은 사람에게 복수 발령(겸직 등)이 실제로 있으므로 2차 매칭 건은 전부 사람이 판단한다.
+//     ※ 2차 매칭은 **기존 시트 행에 대해서만** 적용 — 배치 내 후보끼리는 1차 키로만 구분
+//    + '입사'·'퇴사'는 사번당 1건으로 추가 제한 (수기 입력분 보호)
 //  안전장치:
 //    - [조직도] 또는 [퇴직자]에 존재하는 사번만 반영 (공고 양식의 더미 사번 200000000 차단)
 //    - LockService 로 트리거·수동 실행 동시성 차단
-//    - 기존 행은 절대 수정·삭제하지 않음 (append 전용)
+//    - 기존 행은 절대 수정·삭제하지 않음 (append 전용). 프리뷰는 [발령_프리뷰] 시트에만 씀
 //
 //  ※ 웹앱 라우트와 무관한 내부 배치 → clasp push 만으로 반영 (새 버전 배포 불필요)
 // ================================================================
 
 // ── 상수 ────────────────────────────────────────────────────────
-var SA_GONGGO_SS_ID = '1-pZ0qKTddrINBjWKfrs9kRytcMunr1xOq3vnJu_aPy4'; // 인사발령 공고 원천 시트
-var SA_APPT_SHEET   = '인사카드_발령';
+var SA_GONGGO_SS_ID  = '1-pZ0qKTddrINBjWKfrs9kRytcMunr1xOq3vnJu_aPy4'; // 인사발령 공고 원천 시트
+var SA_APPT_SHEET    = '인사카드_발령';
+var SA_PREVIEW_SHEET = '발령_프리뷰';   // previewAppointments() 결과 출력용 임시 시트 (자동 생성/전체 갱신)
+var SA_PREVIEW_BANNER = '⚡ previewAppointments() 자동 생성 시트입니다. 직접 편집하지 마세요 (실행할 때마다 전체 덮어씀). 검수 후 삭제해도 무방합니다.';
 
 // 퇴직자에게도 '입사' 발령을 소급 생성할지 여부.
 //   true  = [조직도] + [퇴직자] 전원 (퇴사 발령만 있고 입사 발령이 없는 불일치 방지)
@@ -46,8 +58,17 @@ function syncAppointments() {
   return sa_run({ dryRun: false, gonggo: true, hire: true, leave: true });
 }
 
-/** 쓰기 없이 결과만 로그 — 최초 실행 전 반드시 이걸로 먼저 확인 */
+/**
+ * 쓰기 없이 결과만 확인 — 최초 실행 전 반드시 이걸로 먼저 검수
+ * [인사카드_발령] 에는 손대지 않고, 결과 전체를 [발령_프리뷰] 시트에 구분 컬럼과 함께 기록한다.
+ * (실행 로그는 길면 잘리므로 검수는 시트에서)
+ */
 function previewAppointments() {
+  return sa_run({ dryRun: true, previewSheet: true, gonggo: true, hire: true, leave: true });
+}
+
+/** 프리뷰 시트 없이 로그로만 확인하고 싶을 때 */
+function previewAppointmentsLogOnly() {
   return sa_run({ dryRun: true, gonggo: true, hire: true, leave: true });
 }
 
@@ -102,33 +123,54 @@ function sa_run(opts) {
     var existing = sa_readExisting(apptSheet, warn); // 기존 발령 행 인덱스
     if (!existing.hdr.length) { Logger.log(warn.join('\n')); return; }
 
-    var cand = [];  // 후보 레코드 {sabun,nick,type,date,beforeOrg,beforePos,afterOrg,afterPos,note,src}
-    if (opts.gonggo) cand = cand.concat(sa_parseGonggo(roster, warn));
+    var cand = [];      // 후보 레코드 {sabun,nick,type,date,beforeOrg,beforePos,afterOrg,afterPos,note,tab}
+    var rejected = [];  // 파싱 단계에서 제외된 것 {rec, reason}
+    if (opts.gonggo) cand = cand.concat(sa_parseGonggo(roster, warn, rejected));
     if (opts.hire)   cand = cand.concat(sa_buildHireRecords(roster, existing, warn));
     if (opts.leave)  cand = cand.concat(sa_buildLeaveRecords(roster, existing, warn));
 
-    // ── 필터링: 기존 중복 + 배치 내 중복 제거 ──────────────────
+    // ── 2단계 중복 판정 ────────────────────────────────────────
+    //  1차(엄격): 사번|발령일|발령유형|변경후_소속 → 같으면 이미 반영된 것으로 보고 조용히 스킵
+    //  2차(느슨): 사번|발령일 만으로 기존 정본 행과 대조 → 걸리면 자동 반영하지 않고
+    //             '표기 상이 — 수동확인' 목록으로만 올림
+    //             (시트 "팀 이동/팀 개편" vs 파서 "부서이동", "Pulse1" vs "Pulse 1" 같은
+    //              표기 차이로 정본이 중복되는 것을 막는다)
+    //  ※ 느슨 매칭은 **기존 시트 행에 대해서만** 적용한다. 같은 날 같은 사람에게 복수 발령
+    //     (겸직 등)이 실제로 있으므로 배치 내 후보끼리는 1차 키로만 구분한다.
     var batchKeys = {};
-    var fresh = [], skipped = 0;
+    var fresh = [], dupExact = [], dupLoose = [], dupOnce = [];
     cand.forEach(function(r) {
       var key = sa_apptKey(r.sabun, r.date, r.type, r.afterOrg);
-      if (existing.keys[key] || batchKeys[key]) { skipped++; return; }
 
-      // 사번당 1건 제한 유형 (수기 입력분과의 표기 차이로 인한 중복 방지)
-      if (r.type === '입사' && existing.hasHire[r.sabun]) { skipped++; return; }
+      if (existing.keys[key]) { dupExact.push({ rec: r, reason: '기존 행과 정확 일치' }); return; }
+      if (batchKeys[key])     { dupExact.push({ rec: r, reason: '이번 배치 내 중복 (공고 2벌 등)' }); return; }
+
+      // 사번당 1건 제한 유형 (수기 입력분 보호)
+      if (r.type === '입사' && existing.hasHire[r.sabun]) {
+        dupOnce.push({ rec: r, reason: '이미 입사 발령 보유 (사번당 1건 제한)' }); return;
+      }
       if (r.type === '퇴사' && existing.hasLeave[r.sabun]) {
-        if (existing.hasLeave[r.sabun] !== sa_toDateStr(r.date)) {
-          warn.push('퇴사 발령 이미 존재하나 날짜 상이 → 건너뜀: ' + r.sabun +
-                    ' (기존 ' + existing.hasLeave[r.sabun] + ' / 신규 ' + sa_toDateStr(r.date) + ')');
-        }
-        skipped++; return;
+        dupOnce.push({ rec: r, reason: '이미 퇴사 발령 보유 (기존 ' + existing.hasLeave[r.sabun] + ')' }); return;
       }
 
-      // 유사 중복 경고 (같은 사번·날짜·유형인데 소속 표기만 다름 → 사람이 확인 필요)
-      var loose = sa_looseKey(r.sabun, r.date, r.type);
-      if (existing.loose[loose]) {
-        warn.push('유사 중복 의심 (소속 표기 차이): ' + r.sabun + ' ' + sa_toDateStr(r.date) + ' ' + r.type +
-                  ' | 기존 "' + existing.loose[loose] + '" vs 신규 "' + r.afterOrg + '"');
+      // ★ 2차: 사번 + 발령일이 같은 기존 행이 있으면 자동 반영 금지
+      var hits = existing.byDate[sa_dateKey(r.sabun, r.date)];
+      if (hits && hits.length && sa_isSettled(hits)) {
+        // 기존 행 비고에 #확정 → 검수 끝난 건. 매 실행마다 재알림하지 않고 조용히 스킵
+        dupExact.push({ rec: r, reason: '기존 행 비고 #확정 — 검수 완료 처리됨' });
+        return;
+      }
+      if (hits && hits.length) {
+        dupLoose.push({
+          rec: r,
+          reason: '기존 ' + hits.length + '행과 사번·발령일 동일 → ' +
+                  hits.map(function(h) {
+                    return '[' + h.row + '행] ' + (h.type || '(유형없음)') + ' / ' +
+                           (h.afterOrg || h.beforeOrg || '(소속없음)');
+                  }).join(' , ') +
+                  '   ※ 검수 후 이 알림을 끄려면 기존 행 비고에 #확정 추가'
+        });
+        return;
       }
 
       batchKeys[key] = true;
@@ -136,6 +178,7 @@ function sa_run(opts) {
       if (r.type === '퇴사') existing.hasLeave[r.sabun] = sa_toDateStr(r.date);
       fresh.push(r);
     });
+    var skipped = dupExact.length + dupOnce.length + dupLoose.length;
 
     // 발령일 오름차순 (시트가 시간순으로 쌓이도록)
     fresh.sort(function(a, b) {
@@ -152,28 +195,48 @@ function sa_run(opts) {
       range.setFontFamily('Arial').setFontSize(9);
     }
 
-    // ── 로그 ────────────────────────────────────────────────
+    // ── 프리뷰 시트 출력 ─────────────────────────────────────
+    var unresolved = fresh.filter(function(r) { return r.type === '인사발령'; }).length;
+    var previewMsg = '';
+    if (opts.previewSheet) {
+      previewMsg = sa_writePreviewSheet(ss, {
+        fresh: fresh, dupExact: dupExact, dupOnce: dupOnce, dupLoose: dupLoose,
+        rejected: rejected, warn: warn, existingCount: existing.count
+      });
+    }
+
+    // ── 로그 (길면 잘리므로 요약만 — 상세는 [발령_프리뷰] 시트에서) ──
     var byType = {};
     fresh.forEach(function(r) { byType[r.type] = (byType[r.type] || 0) + 1; });
     var log = [];
-    log.push(opts.dryRun ? '🔍 [DRY-RUN] 실제 쓰기 없음' : '✍️ [인사카드_발령] 반영 완료');
-    log.push('후보 ' + cand.length + '건 / 신규 ' + fresh.length + '건 / 중복 스킵 ' + skipped + '건 (기존 ' + existing.count + '행)');
+    log.push(opts.dryRun ? '🔍 [DRY-RUN] [' + SA_APPT_SHEET + '] 쓰기 없음' : '✍️ [' + SA_APPT_SHEET + '] 반영 완료');
+    log.push('기존 ' + existing.count + '행 (수정·삭제 없음) / 후보 ' + cand.length + '건');
+    log.push('  ① 신규' + (opts.dryRun ? ' 예정' : '') + '            ' + fresh.length + '건' +
+             (unresolved ? '   (그중 유형 판별 실패 "인사발령" ' + unresolved + '건)' : ''));
+    log.push('  ② 중복 스킵(정확일치)  ' + dupExact.length + '건');
+    log.push('  ③ 표기 상이 — 수동확인 ' + dupLoose.length + '건  ← 사번+발령일이 기존 행과 같아 자동 반영 안 함');
+    log.push('  ④ 사번당 1건 제한 스킵 ' + dupOnce.length + '건');
+    log.push('  ⑤ 파싱 단계 제외        ' + rejected.length + '건');
     if (fresh.length) {
-      log.push('유형별: ' + Object.keys(byType).map(function(k) { return k + ' ' + byType[k]; }).join(', '));
-      fresh.forEach(function(r) {
-        log.push('  + ' + sa_toDateStr(r.date) + ' | ' + r.sabun + ' ' + (r.nick || '') + ' | ' + r.type +
-                 ' | ' + (r.beforeOrg || '-') + (r.beforePos ? ' (' + r.beforePos + ')' : '') +
-                 ' → ' + (r.afterOrg || '-') + (r.afterPos ? ' (' + r.afterPos + ')' : '') +
-                 (r.note ? ' | ' + r.note : ''));
-      });
+      log.push('신규 유형별: ' + Object.keys(byType).map(function(k) { return k + ' ' + byType[k]; }).join(', '));
     }
+    if (previewMsg) { log.push(''); log.push(previewMsg); }
     if (warn.length) {
       log.push('');
-      log.push('⚠️ 확인 필요 ' + warn.length + '건');
+      log.push('⚠️ 점검 필요 ' + warn.length + '건');
       warn.forEach(function(w) { log.push('  - ' + w); });
     }
     Logger.log('인사발령 자동 동기화\n' + log.join('\n'));
-    return { added: fresh.length, skipped: skipped, warnings: warn.length };
+
+    return {
+      added: opts.dryRun ? 0 : fresh.length,
+      pending: fresh.length,
+      dupExact: dupExact.length,
+      needsReview: dupLoose.length,
+      dupOnce: dupOnce.length,
+      rejected: rejected.length,
+      warnings: warn.length
+    };
 
   } finally {
     lock.releaseLock();
@@ -182,9 +245,112 @@ function sa_run(opts) {
 
 
 // ================================================================
+//  프리뷰 시트 출력 — [발령_프리뷰]
+//  ※ [인사카드_발령] 은 절대 건드리지 않는다. 이 시트만 매 실행 전체 갱신.
+// ================================================================
+function sa_writePreviewSheet(ss, r) {
+  var sh = ss.getSheetByName(SA_PREVIEW_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(SA_PREVIEW_SHEET);
+    sh.setTabColor('#F59E0B');
+  } else {
+    // 사람이 만든 동명 시트를 덮어쓰지 않도록 배너로 소유권 확인
+    var a1 = String(sh.getRange(1, 1).getValue() || '');
+    if (sh.getLastRow() > 0 && a1.indexOf('previewAppointments()') < 0) {
+      return '⛔ [' + SA_PREVIEW_SHEET + '] 시트에 다른 내용이 있어 덮어쓰지 않았습니다. ' +
+             '해당 시트를 삭제하거나 이름을 바꾼 뒤 다시 실행하세요.';
+    }
+  }
+
+  var CAT = {
+    fresh:    '① 신규 예정',
+    unres:    '① 신규 예정 (유형 판별 실패)',
+    loose:    '③ 표기 상이 — 수동확인',
+    once:     '④ 사번당 1건 제한 스킵',
+    exact:    '② 중복 스킵 (정확일치)',
+    rejected: '⑤ 파싱 단계 제외',
+    warn:     '⑨ 점검 필요'
+  };
+  var COLOR = {};
+  COLOR[CAT.fresh]    = '#ECFDF5';
+  COLOR[CAT.unres]    = '#FEF3C7';
+  COLOR[CAT.loose]    = '#FEE2E2';
+  COLOR[CAT.once]     = '#F8FAFC';
+  COLOR[CAT.exact]    = '#F8FAFC';
+  COLOR[CAT.rejected] = '#F1F5F9';
+  COLOR[CAT.warn]     = '#EFF6FF';
+
+  var rows = [];
+  var push = function(cat, rec, reason) {
+    rec = rec || {};
+    rows.push([
+      cat,
+      rec.sabun || '', rec.nick || '',
+      rec.type || '', sa_toDateStr(rec.date),
+      rec.beforeOrg || '', rec.beforePos || '',
+      rec.afterOrg || '',  rec.afterPos || '',
+      rec.note || '', rec.tab || '', reason || ''
+    ]);
+  };
+
+  // 검수 우선순위 순서로 배치: 수동확인 → 신규(판별실패) → 신규 → 제외 → 스킵 → 경고
+  r.dupLoose.forEach(function(x) { push(CAT.loose, x.rec, x.reason); });
+  r.fresh.filter(function(x) { return x.type === '인사발령'; })
+         .forEach(function(x) { push(CAT.unres, x, '발령사항·전후 비교로 유형을 특정하지 못함 → 유형 직접 지정 필요'); });
+  r.fresh.filter(function(x) { return x.type !== '인사발령'; })
+         .forEach(function(x) { push(CAT.fresh, x, ''); });
+  r.rejected.forEach(function(x) { push(CAT.rejected, x.rec, x.reason); });
+  r.dupOnce.forEach(function(x) { push(CAT.once, x.rec, x.reason); });
+  r.dupExact.forEach(function(x) { push(CAT.exact, x.rec, x.reason); });
+  r.warn.forEach(function(w) { push(CAT.warn, null, w); });
+
+  var HDR = ['구분', '사번', '닉네임', '발령유형', '발령일',
+             '변경전_소속', '변경전_직책', '변경후_소속', '변경후_직책', '비고', '출처탭', '판정사유'];
+  var now = Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
+
+  sh.clear();
+  sh.getRange(1, 1, 1, HDR.length).merge()
+    .setValue(SA_PREVIEW_BANNER + '   (갱신: ' + now + ' · 기존 [' + SA_APPT_SHEET + '] ' + r.existingCount + '행은 무변경)')
+    .setFontSize(9).setFontStyle('italic').setFontColor('#B45309').setBackground('#FFFBEB');
+  sh.setRowHeight(1, 22);
+
+  sh.getRange(2, 1, 1, HDR.length).setValues([HDR])
+    .setFontFamily('Arial').setFontWeight('bold').setFontSize(10)
+    .setFontColor('#FFFFFF').setBackground('#1E293B')
+    .setHorizontalAlignment('center').setVerticalAlignment('middle');
+  sh.setRowHeight(2, 26);
+
+  if (rows.length) {
+    var rng = sh.getRange(3, 1, rows.length, HDR.length);
+    rng.setValues(rows).setFontFamily('Arial').setFontSize(9).setVerticalAlignment('top');
+    // 구분별 배경색 (연속 구간 단위로 묶어서 setBackground 호출 최소화)
+    var start = 0;
+    for (var i = 1; i <= rows.length; i++) {
+      if (i === rows.length || rows[i][0] !== rows[start][0]) {
+        var bg = COLOR[rows[start][0]];
+        if (bg) sh.getRange(start + 3, 1, i - start, HDR.length).setBackground(bg);
+        start = i;
+      }
+    }
+  } else {
+    sh.getRange(3, 1, 1, HDR.length).merge()
+      .setValue('추가할 발령이 없습니다 (모두 기존 행과 중복).')
+      .setFontSize(9).setFontStyle('italic').setFontColor('#94A3B8');
+  }
+
+  [110, 90, 80, 130, 85, 200, 100, 200, 100, 220, 110, 420]
+    .forEach(function(w, i) { sh.setColumnWidth(i + 1, w); });
+  sh.setFrozenRows(2);
+
+  return '📋 [' + SA_PREVIEW_SHEET + '] 시트에 ' + rows.length + '행 기록 완료 — 여기서 검수하세요.';
+}
+
+
+// ================================================================
 //  ① 공고 원천 시트 파싱 (CLAUDE.md 5장 규칙)
 // ================================================================
-function sa_parseGonggo(roster, warn) {
+function sa_parseGonggo(roster, warn, rejected) {
+  rejected = rejected || [];
   var src;
   try {
     src = SpreadsheetApp.openById(SA_GONGGO_SS_ID);
@@ -203,7 +369,7 @@ function sa_parseGonggo(roster, warn) {
 
     // rows = 교차검증 통과분 / allRows = 교차검증 이전 전체 (양식 탭 판정용)
     var rows = [], allRows = [], nos = {};
-    sa_parseGonggoSheet(sheet, roster, rows, allRows, unknown, warn, nos, tab);
+    sa_parseGonggoSheet(sheet, roster, rows, allRows, unknown, warn, nos, tab, rejected);
 
     // 양식·데모 탭 자동 격리 — 한 사람이 같은 날 여러 발령유형을 받는 구성은 실제 공고에 없음
     // ※ 교차검증에서 이미 걸러진 행까지 포함해 판정해야 양식 탭의 특징이 드러난다
@@ -211,6 +377,7 @@ function sa_parseGonggo(roster, warn) {
     if (demo) {
       warn.push('양식·데모 탭으로 판단해 ' + allRows.length + '건 전체 제외: [' + tab + '] — ' + demo +
                 ' (실제 공고라면 SA_SKIP_TAB_RE 조정 필요)');
+      allRows.forEach(function(x) { rejected.push({ rec: x, reason: '양식·데모 탭으로 판정되어 제외 — ' + demo }); });
       return;
     }
 
@@ -228,7 +395,13 @@ function sa_parseGonggo(roster, warn) {
   var us = Object.keys(unknown);
   if (us.length) {
     warn.push('명부에 없는 사번 → 반영 제외 (' + us.length + '건): ' +
-              us.map(function(k) { return k + '(' + unknown[k] + ')'; }).join(', '));
+              us.map(function(k) { return k + '(' + unknown[k].name + ')'; }).join(', '));
+    us.forEach(function(k) {
+      rejected.push({
+        rec: { sabun: k, nick: unknown[k].name, tab: unknown[k].tab },
+        reason: '[조직도]/[퇴직자] 명부에 없는 사번 (' + unknown[k].count + '행) — 공고 양식의 더미 사번이거나 오기입'
+      });
+    });
   }
   return out;
 }
@@ -251,7 +424,7 @@ function sa_looksLikeTemplate(rows) {
   return '';
 }
 
-function sa_parseGonggoSheet(sheet, roster, out, allRows, unknown, warn, nos, tab) {
+function sa_parseGonggoSheet(sheet, roster, out, allRows, unknown, warn, nos, tab, rejected) {
   var data;
   try { data = sheet.getDataRange().getValues(); } catch (e) { return; }
   if (!data.length) return;
@@ -294,13 +467,18 @@ function sa_parseGonggoSheet(sheet, roster, out, allRows, unknown, warn, nos, ta
     var emp = roster[sabun];
     if (!emp) {
       // 공고 양식의 더미 행(사번 200000000 / 성명 OOO) 및 오기입 차단
-      unknown[sabun] = person.name || person.nick || tab;
+      if (!unknown[sabun]) unknown[sabun] = { name: person.name || person.nick || '', tab: tab, count: 0 };
+      unknown[sabun].count++;
       continue;
     }
 
     var dateStr = sa_extractDate(g(map.발령일)) || ctx.date;
     if (!dateStr) {
       warn.push('발령일자 파싱 실패 → 제외: [' + tab + '] ' + sabun + ' ' + person.name);
+      rejected.push({
+        rec: { sabun: sabun, nick: emp.nick || person.nick, tab: tab, note: sa_norm(g(map.비고)) },
+        reason: '발령일자를 파싱하지 못함 (원본 셀: "' + sa_summary(g(map.발령일), 40) + '")'
+      });
       continue;
     }
 
@@ -321,17 +499,20 @@ function sa_parseGonggoSheet(sheet, roster, out, allRows, unknown, warn, nos, ta
     }
 
     rec.note = sa_join([ctx.no, rec.note], ' · ');
+    rec.tab = tab;
     allRows.push(rec);
 
     // ── 교차검증: 명부와 모순되는 입·퇴사 발령은 반영하지 않음 (양식 행·오기입 차단)
     if (rec.type === '퇴사' && !emp.left && String(emp.status || '').indexOf('퇴') < 0) {
-      warn.push('공고에는 퇴사 발령이나 명부상 재직 중 → 제외: [' + tab + '] ' + sabun + ' ' +
-                (emp.nick || person.name) + ' ' + dateStr);
+      var m1 = '공고에는 퇴사 발령이나 명부상 재직 중 (' + (emp.status || '재직') + ')';
+      warn.push(m1 + ' → 제외: [' + tab + '] ' + sabun + ' ' + (emp.nick || person.name) + ' ' + dateStr);
+      rejected.push({ rec: rec, reason: m1 });
       continue;
     }
     if (rec.type === '입사' && emp.join && sa_toDateStr(dateStr) !== emp.join) {
-      warn.push('공고 입사일이 명부 입사일과 불일치 → 제외: [' + tab + '] ' + sabun + ' ' +
-                (emp.nick || person.name) + ' 공고 ' + dateStr + ' vs 명부 ' + emp.join);
+      var m2 = '공고 입사일(' + dateStr + ')이 명부 입사일(' + emp.join + ')과 불일치';
+      warn.push(m2 + ' → 제외: [' + tab + '] ' + sabun + ' ' + (emp.nick || person.name));
+      rejected.push({ rec: rec, reason: m2 });
       continue;
     }
 
@@ -652,7 +833,7 @@ function sa_readExisting(sheet, warn) {
   var h = sa_findHeader(data, ['발령유형']) || sa_findHeader(data, ['사번']);
   if (!h) {
     warn.push('[' + SA_APPT_SHEET + '] 헤더 탐지 실패 — 1행에 사번/발령유형 헤더가 필요합니다.');
-    return { hdr: [], hdrIdx: 0, col: {}, keys: {}, loose: {}, hasHire: {}, hasLeave: {}, count: 0 };
+    return { hdr: [], hdrIdx: 0, col: {}, keys: {}, byDate: {}, hasHire: {}, hasLeave: {}, count: 0 };
   }
 
   var col = {
@@ -667,22 +848,40 @@ function sa_readExisting(sheet, warn) {
     비고:       sa_findCol(h.hdr, ['비고'])
   };
 
-  var keys = {}, loose = {}, hasHire = {}, hasLeave = {}, count = 0;
+  var keys = {}, byDate = {}, hasHire = {}, hasLeave = {}, count = 0, noDate = 0;
   for (var i = h.idx + 1; i < data.length; i++) {
     var r = data[i];
     var sb = col.사번 >= 0 ? String(r[col.사번] || '').trim() : '';
     if (!sb || !/^\d{6,}$/.test(sb)) continue;   // 설명행·공란 스킵
-    var type  = col.발령유형   >= 0 ? sa_norm(r[col.발령유형]) : '';
-    var date  = col.발령일     >= 0 ? sa_toDateStr(r[col.발령일]) : '';
-    var after = col.변경후_소속 >= 0 ? sa_norm(r[col.변경후_소속]) : '';
+    var type   = col.발령유형    >= 0 ? sa_norm(r[col.발령유형])   : '';
+    var date   = col.발령일      >= 0 ? sa_toDateStr(r[col.발령일]) : '';
+    var before = col.변경전_소속 >= 0 ? sa_norm(r[col.변경전_소속]) : '';
+    var after  = col.변경후_소속 >= 0 ? sa_norm(r[col.변경후_소속]) : '';
+
     keys[sa_apptKey(sb, date, type, after)] = true;
-    loose[sa_looseKey(sb, date, type)] = after;
+
+    // ★ 2차(느슨) 인덱스: 사번 + 발령일 → 기존 행 목록 (유형·소속 표기 차이 무시)
+    if (date) {
+      var dk = sa_dateKey(sb, date);
+      if (!byDate[dk]) byDate[dk] = [];
+      byDate[dk].push({
+        row: i + 1, type: type, beforeOrg: before, afterOrg: after,
+        note: col.비고 >= 0 ? String(r[col.비고] || '') : ''
+      });
+    } else {
+      noDate++;
+    }
+
     if (type.indexOf('입사') >= 0) hasHire[sb] = true;
     if (type.indexOf('퇴사') >= 0) hasLeave[sb] = date;
     count++;
   }
+  if (noDate) {
+    warn.push('[' + SA_APPT_SHEET + '] 발령일을 읽지 못한 기존 행 ' + noDate +
+              '건 — 해당 행은 느슨 매칭(사번+발령일) 대상에서 빠지므로 중복 반영될 수 있습니다. 발령일 형식 확인 필요.');
+  }
 
-  return { hdr: h.hdr, hdrIdx: h.idx, col: col, keys: keys, loose: loose,
+  return { hdr: h.hdr, hdrIdx: h.idx, col: col, keys: keys, byDate: byDate,
            hasHire: hasHire, hasLeave: hasLeave, count: count };
 }
 
@@ -778,8 +977,17 @@ function sa_apptKey(sabun, date, type, afterOrg) {
   return [String(sabun).trim(), sa_toDateStr(date), sa_flat(type), sa_flat(afterOrg)].join('|');
 }
 
-function sa_looseKey(sabun, date, type) {
-  return [String(sabun).trim(), sa_toDateStr(date), sa_flat(type)].join('|');
+/** 2차(느슨) 키 — 사번 + 발령일만. 유형·소속 표기 차이를 무시하고 같은 발령으로 본다 */
+function sa_dateKey(sabun, date) {
+  return String(sabun).trim() + '|' + sa_toDateStr(date);
+}
+
+/**
+ * 느슨 매칭에 걸린 기존 행들이 이미 검수 완료 처리됐는지 (비고에 #확정)
+ * → 매 실행마다 같은 건이 수동확인 목록에 반복 등장하는 것을 끄는 스위치
+ */
+function sa_isSettled(hits) {
+  return hits.some(function(h) { return String(h.note || '').indexOf('#확정') >= 0; });
 }
 
 /** 1~3행 내 헤더 탐지 */
