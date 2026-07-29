@@ -977,12 +977,26 @@ function mergeForPrint(e){
 }
 
 // 본부명으로 AI 비용 조회 — 공백 차이 무시 매칭 (deptAiCost 우선, deptBudgets['ai_...'] 폴백)
+//
+// ★★ 단위 주의 (2026.07.29 교정) ★★
+//   [설정] 'ai_본부명' 값은 **천원/월** 단위로 입력돼 있다. 다른 [설정] 키
+//   (budget_ · 월비용_)와 달라서 v3.1 도입 이후 프론트가 만원으로 오인해 왔다.
+//   근거(실측 payload): 최소단위 37.5 = Claude seat 1개 37,500원/월.
+//     Pulse 6명=225, Heart 5명=187.5, CEO직속 3명=112.5, 각 법인 1명=37.5 로 정확히 재현.
+//     전사 합 8,025천원 = 802.5만원 (실제 청구액 ~800만원과 일치).
+//     만원으로 읽으면 1인당 101만원(~$726)/월이 되어 비현실적.
+//   → 여기서 천원→만원으로 변환해 **호출부는 전부 '만원'으로 통일**한다.
+//     (호출부: renderOrg()의 aiCostMan, orgWideTotals()의 aiMan)
+//   이전 버그: 본부별 AI 비용이 10배 과대 표시 + 본부별 '합계' 라인이
+//              인건비(만원) + AI(천원)를 섞어 더하고 있었음.
+//   ※ [설정] 입력 단위를 만원으로 바꾸려면 이 toMan() 변환을 함께 제거해야 한다.
 function aiCostFor(name){
   const norm=v=>String(v||'').replace(/\s+/g,'');
   const n=norm(name);
   if(!n) return 0;
-  if(S.deptAiCost){for(const k in S.deptAiCost){if(norm(k)===n) return S.deptAiCost[k]||0;}}
-  if(S.deptBudgets){for(const k in S.deptBudgets){if(k.indexOf('ai_')===0 && norm(k.slice(3))===n) return S.deptBudgets[k]||0;}}
+  const toMan=chun=>(Number(chun)||0)/10;   // [설정] 천원/월 → 화면 공통 단위 만원/월
+  if(S.deptAiCost){for(const k in S.deptAiCost){if(norm(k)===n) return toMan(S.deptAiCost[k]);}}
+  if(S.deptBudgets){for(const k in S.deptBudgets){if(k.indexOf('ai_')===0 && norm(k.slice(3))===n) return toMan(S.deptBudgets[k]);}}
   return 0;
 }
 
