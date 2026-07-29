@@ -73,6 +73,27 @@ main{padding:20px;max-width:1440px;margin:0 auto;}
 .sval small{font-size:12px;font-weight:400;color:var(--text3);}
 .ssub{font-size:11px;color:var(--text3);margin-top:3px;}
 
+/* ── 전사 요약 스트립 (조직도 탭 최상단) v3.8 ──
+   본부별 박스에 표시되는 인건비(월고정 합계)·AI 비용을 그대로 단순 합산한 값.
+   집계 로직을 새로 만들지 않으므로 조직별 합 = 전사 값이 항상 일치한다.
+   gap:1px + 컨테이너 배경색 = 어느 지점에서 줄바꿈돼도 구분선이 깨지지 않음 (모바일 대응) */
+.osum-wrap{margin-bottom:14px;}
+.osum-cap{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:11.5px;font-weight:700;color:var(--text2);margin-bottom:6px;padding-left:2px;}
+.osum-cap-sub{font-size:10.5px;font-weight:500;color:var(--text3);}
+.osum{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--sh);}
+.osum-i{background:var(--white);padding:12px 15px;min-width:0;}
+.osum-lbl{font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.04em;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.osum-val{font-size:22px;font-weight:700;color:var(--text);line-height:1.15;word-break:keep-all;}
+.osum-val.sm{font-size:16px;}
+.osum-val small{font-size:12px;font-weight:400;color:var(--text3);}
+.osum-sub{font-size:10.5px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+@media(max-width:520px){
+  .osum{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));}
+  .osum-i{padding:10px 12px;}
+  .osum-val{font-size:19px;}
+  .osum-val.sm{font-size:14.5px;}
+}
+
 /* LAYOUT */
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
 .g2 .card{margin-bottom:0;}
@@ -478,6 +499,14 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
     <!-- ══ 조직도 탭 ══ -->
     <div class="panel active" id="panel-org">
 
+      <!-- 🏢 전사 요약 스트립 v3.8 (본부별 표시값의 단순 합산) -->
+      <div class="osum-wrap org-noprint">
+        <div class="osum-cap">🏢 윌로그 전사 요약
+          <span class="osum-cap-sub">아래 본부별 인건비 · AI 비용의 단순 합산 · 조직도 필터와 무관하게 전사 기준 · 상세 내역은 본부별 영역 참조</span>
+        </div>
+        <div class="osum" id="org-summary"></div>
+      </div>
+
       <!-- KPI + 직책별 인원 -->
       <div class="sgrid" id="org-stats"></div>
 
@@ -821,7 +850,7 @@ const BU_CLR = {
 // ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
-let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{}, deptMoCosts:{}, leavers:[], hrEvents:[], probation:[] };
+let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{}, deptMoCosts:{}, leavers:[], hrEvents:[], probation:[], loadedAt:null };
 let G = { rev:150, ratio:60, pp:2, annualCostTarget:75 };
 
 // ═══════════════════════════════════════════════════
@@ -877,6 +906,7 @@ async function loadData() {
     S.leavers    = data.leavers    || [];
     S.hrEvents   = data.hrEvents   || [];
     S.probation  = data.probation  || [];
+    S.loadedAt   = new Date();   // 전사 요약 '기준일' — 시트 read 성공 시각 (payload에 갱신 타임스탬프 없음)
 
     if (data.revenue !== undefined)         G.rev              = Number(data.revenue)         || 150;
     if (data.targetCostRatio !== undefined) G.ratio            = Number(data.targetCostRatio) || 60;
@@ -1083,6 +1113,7 @@ function renderAll() {
   const activeN = S.emps.filter(e=>empSt(e)!=='퇴직').length;
   document.getElementById('tab-hc').textContent = activeN;
 
+  renderOrgSummary();
   renderOrgStats();
   renderOrg();
   renderSalRank();
@@ -1098,6 +1129,66 @@ function renderAll() {
   renderProbation();
   renderTenureChart();
   renderLevelChart();
+}
+
+// ═══════════════════════════════════════════════════
+// 조직도 탭 최상단 전사 요약 스트립 v3.8
+// ──────────────────────────────────────────────────
+// ★ 새 집계 로직을 만들지 않는다. renderOrg()가 본부 박스에 쓰는 것과
+//   완전히 같은 소스를 그대로 합산하므로 조직별 합 = 전사 값이 보장된다.
+//    · 인건비 = empSal(e) (월고정만) — 본부 박스의 totMoSal 과 동일 소스
+//    · AI 비용 = aiCostFor(bu) — 본부 박스의 aiCostMan 과 동일 함수
+//   집계 대상 인원도 renderOrg()와 같은 '퇴직 제외' 기준 (퇴직예정 포함).
+//   ※ 조직도 필터(buF/stF)와 무관하게 항상 전사 기준으로 표시한다
+//     (바로 아래 org-stats KPI도 필터 무관 전사 기준이므로 동일한 규칙).
+// ═══════════════════════════════════════════════════
+function orgWideTotals() {
+  const active = S.emps.filter(e => empSt(e) !== '퇴직');
+  // 본부 그룹 키 = renderOrg()의 buMap 키와 동일 (empBu)
+  const bus = [...new Set(active.map(empBu).filter(Boolean))];
+  return {
+    headcount : active.length,
+    retiring  : active.filter(e => empSt(e)==='퇴직예정').length,
+    salMan    : active.reduce((s,e) => s + empSal(e), 0),
+    aiMan     : bus.reduce((s,bu) => s + aiCostFor(bu), 0),
+    aiBuCount : bus.filter(bu => aiCostFor(bu) > 0).length,
+    buCount   : bus.length,
+  };
+}
+
+// 만원 단위 반올림 표기 (요약 스트립 전용 — 상세는 본부별 영역의 천원 표기 유지)
+function fmtMan(manwon) {
+  if (!manwon) return '—';
+  return Math.round(manwon).toLocaleString();
+}
+
+function osCell(lbl, val, unit, sub, small) {
+  return `<div class="osum-i">
+    <div class="osum-lbl">${lbl}</div>
+    <div class="osum-val${small?' sm':''}">${val}${unit?`<small> ${unit}</small>`:''}</div>
+    ${sub?`<div class="osum-sub">${sub}</div>`:''}
+  </div>`;
+}
+
+function renderOrgSummary() {
+  const box = document.getElementById('org-summary');
+  if (!box) return;
+  if (!S.emps.length) { box.innerHTML = osCell('전사 요약', '—', '', '데이터 없음'); return; }
+
+  const t  = orgWideTotals();
+  const d  = S.loadedAt || new Date();
+  const pad= n => String(n).padStart(2,'0');
+
+  box.innerHTML =
+    osCell('총 재직 인원', t.headcount.toLocaleString(), '명',
+           t.retiring > 0 ? `퇴직예정 ${t.retiring}명 포함 · ${t.buCount}개 본부/부서` : `${t.buCount}개 본부/부서`) +
+    // 값이 0이면 fmtMan()이 '—' 를 주므로 단위를 붙이지 않는다 ('— 만원' 방지)
+    osCell('전사 인건비 합계 (월)', fmtMan(t.salMan), t.salMan ? '만원' : '',
+           t.salMan > 0 ? `${fmtUk(t.salMan)}/월 · 월고정총액 기준` : '월고정총액 기준') +
+    osCell('전사 AI 비용 합계 (월)', fmtMan(t.aiMan), t.aiMan ? '만원' : '',
+           t.aiMan > 0 ? `[설정] AI 비용 등록 ${t.aiBuCount}개 본부` : '[설정] ai_ 키 미등록') +
+    osCell('기준일', `${d.getFullYear()}. ${pad(d.getMonth()+1)}. ${pad(d.getDate())}.`, '',
+           `${pad(d.getHours())}:${pad(d.getMinutes())} 시트 조회 기준`, true);
 }
 
 // ═══════════════════════════════════════════════════
