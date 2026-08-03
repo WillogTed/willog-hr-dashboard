@@ -4,6 +4,8 @@
 //    2026-06 : joinDate 정규화 (Date 객체 → "YYYY.MM.DD" 문자열)
 //              고용형태(empType) 필드 추가 (인사카드_기본추가정보 시트)
 //              최근 평가 2개 종합등급 evals에 포함 (기존 동일)
+//    2026-08-03 : 발령 이력 정렬 추가 (발령일 내림차순 + 유형 서열)
+//                 — hp_sortApptHistory(). 시트는 재정렬하지 않는다.
 // ═══════════════════════════════════════════════════════
  
 /**
@@ -152,7 +154,9 @@ function getProfileData(empId) {
   var probEval = readSheet(ss, '인사카드_수습평가', empId, ['평가일']);
  
   // ── 7. 발령 이력 ────────────────────────────────────
-  var history = readSheet(ss, '인사카드_발령', empId, ['발령일']);
+  // 시트 행 순서는 사람마다 다르다 (append 전용 원장) → 여기서 최신순으로 정렬한다.
+  // 시트 자체는 재정렬하지 않는다 (syncAppointments 멱등성 보호)
+  var history = hp_sortApptHistory(readSheet(ss, '인사카드_발령', empId, ['발령일']), empId);
  
   // ── 8. 연봉 이력 ────────────────────────────────────
   var salary = readSheet(ss, '인사카드_연봉', empId, ['계약일','계약만료일','특별보수지급일']);
@@ -218,5 +222,138 @@ function readSheet(ss, sheetName, empId, dateCols) {
     result.push(row);
   }
   return result;
+}
+
+
+// ═══════════════════════════════════════════════════════
+//  발령 이력 정렬 (2026-08-03 신규)
+//
+//  [인사카드_발령] 은 append 전용 원장이라 행 순서가 사람마다 다르다.
+//    · 정본 77행 = 수기 입력분이라 대체로 시간순
+//    · syncAppointments 백필분 = 공고 탭 순서. 배치 내에서만 발령일 오름차순으로
+//      정렬해 append하므로(SyncAppointments.gs), 회차가 갈리거나 입사/퇴사 발령이
+//      나중 회차에 붙으면 개인 단위 순서가 깨진다
+//  → 시트는 절대 재정렬하지 않고(syncAppointments 의 행 기반 멱등성 보호),
+//    응답을 조립할 때만 정렬한다. 정렬은 여기 한 곳에서만 하고
+//    프론트(index.html)는 서버가 준 순서를 그대로 렌더한다.
+// ═══════════════════════════════════════════════════════
+
+/**
+ * 같은 발령일에 복수 발령이 있을 때(겸직 등)의 2차 정렬 서열.
+ * 발령일과 함께 내림차순 정렬하므로 숫자가 큰 쪽이 화면 위로 온다
+ * (요구 순서: 입사 < 부서이동 < 직책승격 < 겸직 < 겸직해제 < 레벨업 < 퇴사
+ *  → 화면에서는 퇴사가 위, 입사가 아래).
+ */
+var HP_APPT_RANK = {
+  '입사'    : 10,
+  '부서이동': 20,
+  '직책승격': 30,
+  '겸직'    : 40,
+  '겸직해제': 50,
+  '레벨업'  : 60,
+  '퇴사'    : 70
+};
+
+/**
+ * 위 7종 외에 실제로 쓰이는 발령유형 어휘 (SyncAppointments.gs 참조).
+ * 서열이 명시된 7종 사이에 끼워 넣은 값이라 조정해도 무방하다.
+ * 여기에도 없는 유형(판별 실패분 '인사발령' 등)은 0 → 같은 날짜 그룹의 맨 아래.
+ */
+var HP_APPT_RANK_EXT = {
+  '복직'      : 12,
+  '정규직전환': 15,
+  '직무변경'  : 25,
+  '직책변경'  : 30,  // 직책승격과 동급 (승격/강등 여부는 서열로 구분하지 않음)
+  '휴직'      : 55,
+  '징계'      : 65
+};
+
+/**
+ * 발령일 → 정렬키 "YYYYMMDD". 못 읽으면 '' 을 돌려준다.
+ *
+ * readSheet() 가 normalizeDateStr() 로 "YYYY.MM.DD" 를 만들어 주지만,
+ * V8 Date 가 못 읽는 값("2026년 5월 17일", "미정" 등)은 원문 그대로 통과시킨다.
+ * 문자열 비교만 하면 그런 값이 조용히 섞이므로 여기서 다시 파싱한다.
+ * new Date() 로 재파싱하지 않는 이유: 로케일·타임존에 따라 결과가 흔들린다.
+ */
+function hp_apptDateKey(val) {
+  if (val === null || val === undefined) return '';
+
+  // Date 객체 (getValues() 는 날짜 셀을 Date 로 넘긴다).
+  // instanceof 만 보면 다른 실행 컨텍스트에서 넘어온 Date 를 놓치므로 getTime 유무도 함께 본다
+  if (val instanceof Date || (typeof val === 'object' && val && typeof val.getTime === 'function')) {
+    if (isNaN(val.getTime())) return '';
+    return String(val.getFullYear())
+         + String(val.getMonth() + 1).padStart(2, '0')
+         + String(val.getDate()).padStart(2, '0');
+  }
+
+  var s = String(val).trim();
+  if (!s) return '';
+
+  // "2026.05.17" / "2026. 5. 17" / "2026-5-17" / "2026/05/17" / "2026년 5월 17일"
+  // + 뒤에 부연이 붙는 경우("2025. 8. 22 (Jake 퇴사일)") 앞쪽 날짜만 사용
+  var m = s.match(/(\d{4})\s*[.\-\/년]\s*(\d{1,2})\s*[.\-\/월]\s*(\d{1,2})/);
+  if (!m) return '';
+
+  var mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
+  if (!(mo >= 1 && mo <= 12) || !(d >= 1 && d <= 31)) return '';
+
+  return m[1] + String(mo).padStart(2, '0') + String(d).padStart(2, '0');
+}
+
+/**
+ * 발령유형 → 서열. 조합형("부서이동/직책승격")은 구성요소 중 가장 높은 서열을 쓴다.
+ * 토큰 단위 정확일치로 판정한다 — 부분일치를 쓰면 '겸직해제' 가 '겸직' 으로 잡힌다.
+ */
+function hp_apptTypeRank(type) {
+  var s = String(type == null ? '' : type);
+  if (!s) return 0;
+  var best = 0;
+  s.split(/[\/,·+&]/).forEach(function(tok) {
+    var k = tok.replace(/\s+/g, '');
+    if (!k) return;
+    var r = HP_APPT_RANK[k];
+    if (r === undefined) r = HP_APPT_RANK_EXT[k];
+    if (r !== undefined && r > best) best = r;
+  });
+  return best;
+}
+
+/**
+ * 발령 이력을 화면 표시 순서로 정렬해 새 배열로 돌려준다 (입력 배열 불변).
+ *   1순위 발령일 내림차순 (최신이 맨 위)
+ *   2순위 발령유형 서열 내림차순 (같은 날 복수 발령)
+ *   3순위 원래 시트 순서 (안정 정렬 — 동순위끼리 순서가 흔들리지 않게)
+ * 발령일이 비었거나 파싱 불가한 행은 맨 아래에 시트 순서대로 붙이고 로그 경고를 남긴다.
+ */
+function hp_sortApptHistory(rows, empId) {
+  if (!rows || !rows.length) return rows || [];
+
+  var dated = [], undated = [];
+  rows.forEach(function(r, i) {
+    var key = hp_apptDateKey(r['발령일']);
+    var item = { row: r, idx: i, key: key, rank: hp_apptTypeRank(r['발령유형']) };
+    if (key) dated.push(item); else undated.push(item);
+  });
+
+  dated.sort(function(a, b) {
+    if (a.key !== b.key)   return a.key < b.key ? 1 : -1;  // 발령일 내림차순
+    if (a.rank !== b.rank) return b.rank - a.rank;          // 유형 서열 내림차순
+    return a.idx - b.idx;                                   // 시트 순서 유지
+  });
+
+  if (undated.length) {
+    try {
+      Logger.log('⚠ [인사카드_발령] 사번 ' + empId + ' — 발령일 없음/파싱불가 '
+        + undated.length + '건 → 목록 맨 아래 배치: '
+        + undated.map(function(x) {
+            return '(' + (x.row['발령유형'] || '유형없음') + ' / 발령일="'
+                 + String(x.row['발령일'] == null ? '' : x.row['발령일']) + '")';
+          }).join(', '));
+    } catch (e) {}  // Logger 없는 컨텍스트 방어
+  }
+
+  return dated.concat(undated).map(function(x) { return x.row; });
 }
  

@@ -2713,6 +2713,8 @@ function renderProfile(data){
   document.getElementById('ptab-probation').innerHTML = pbHtml;
 
   // ── 발령 이력 탭 ──
+  // ★ 정렬은 서버(HrCard_Profile.gs hp_sortApptHistory)에서 발령일 내림차순으로 끝낸다.
+  //    여기서 다시 정렬하지 말 것 — 같은 날짜 복수 발령의 유형 서열이 깨진다
   var hHtml = '<div class="ps-title">▎ 발령 이력</div>';
   if (history.length) {
     history.forEach(function(h){

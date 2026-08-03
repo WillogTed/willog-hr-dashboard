@@ -28,7 +28,9 @@ function getHrCardData(ss, sabun) {
       interview:  getSheetRows(ss, '인사카드_면접',           sabun),
       probation:  getSheetRows(ss, '인사카드_수습면담',       sabun),
       probEval:   getSheetRows(ss, '인사카드_수습평가',       sabun),
-      history:    getSheetRows(ss, '인사카드_발령',           sabun),
+      // 발령 이력은 시트 행 순서가 사람마다 다르므로 최신순 정렬 (HrCard_Profile.gs 의 헬퍼 재사용)
+      // ※ 현재 프론트는 action=getProfile 만 쓴다. 이 라우트는 미사용이지만 순서 규칙을 일치시켜 둔다
+      history:    hp_sortApptHistory(getSheetRows(ss, '인사카드_발령', sabun), sabun),
       salary:     getSheetRows(ss, '인사카드_연봉',           sabun),
       evals:      getSheetRows(ss, '인사카드_평가이력',       sabun),
       events:     getSheetRows(ss, '인사카드_이벤트알림',     sabun),
