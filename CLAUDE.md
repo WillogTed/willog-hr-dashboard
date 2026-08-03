@@ -382,6 +382,14 @@ Ted 요구: 퇴직자 인사카드(퇴직평가 포함)를 별도로 조회 가�
 3. **주간 HR 다이제스트**: 임박 이벤트 + 수습 현황 + 입퇴사 요약을 매주 월 09시 Slack Incoming Webhook으로 #boost_hr 발송 (웹훅 URL 1개 필요)
 4. 장기: KPI/OKR "성과·목표" 탭 (별도 라우트 action=readPerf) — 원천(Asana 스냅샷 vs API) 및 피드백 민감도 결정 대기 중
 
+### 6-5. 백로그 — 오프라인 테스트 하네스를 저장소에 편입 (**미착수**, 2026.08.03 보류 결정)
+
+지금까지의 검증 하네스(6-B의 stub 21종, 6-C의 단위 테스트 22종 등)는 전부 **스크래치패드에만 있고 저장소에 없다.** 회귀 테스트로 재사용하려면 편입이 필요하나, **`apps-script/` 안에 넣으면 안 된다.**
+
+- `.clasp.json`이 `rootDir: ""` + `skipSubdirectories: false` 이고 **`.claspignore`가 없다** → `apps-script/` 하위에 `.js`를 추가하면 **`clasp push` 대상에 자동으로 같이 잡혀** Apps Script 프로젝트에 테스트 파일이 올라간다 (`clasp status`의 Tracked files 로 확인 가능)
+- 따라서 편입 시엔 **저장소 루트 `tests/` 폴더 + `.claspignore` 추가**를 한 묶음으로 처리한다. push 대상이 7개 파일 그대로인지 `clasp status`로 확인하는 것까지 포함
+- 그때 함께 정할 것: 실행 방법(`node tests/*.js` 수동 vs npm script), Apps Script 전역(`Logger`·`SpreadsheetApp`) stub 공통화
+
 ## 7. 개발 워크플로 (Claude Code)
 
 > ⚠️ 아래 명령 중 `clasp push` · `git push` · 배포 · 배치 함수 **실제 실행**은 전부 **0장 사전 확인 대상**이다. 코드 수정과 로컬 커밋까지는 확인 없이 진행하고, 반영 직전에 변경 요약을 제시한다.
