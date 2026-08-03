@@ -1,12 +1,36 @@
 // ================================================================
 // 윌로그 조직도 월간 스냅샷 — SnapshotOrgChart.gs
+// v1.1 (2026-08-03) : 저장 위치를 공유 드라이브 폴더로 (Script Properties SNAPSHOT_FOLDER_ID)
 // v1.0 (2026-08-03) : 매월 1일 조직도 스냅샷 아카이브 + PDF 보관
 //
+//  checkSnapshotFolder()         … ★ 먼저 실행. 저장 폴더 접근 진단 (읽기만)
+//  setSnapshotFolderId()         … 저장 폴더 ID 를 Script Properties 에 기록 (최초 1회)
 //  snapshotOrgChart()            … 트리거 진입점 (매월 1일 07시). [조직도_YYYY.MM.01] 탭 생성 + PDF
 //  snapshotOrgChartTest()        … ★ 최초 검수용. [조직도_TEST] 탭에만 기록 (재실행 시 덮어씀)
 //  snapshotOrgChartPreviewLog()  … 아무것도 쓰지 않고 집계 결과만 로그로 확인
+//  migrateSnapshotFilesToFolder()  … 기존 파일을 지정 폴더로 이동 (dry-run) / ...Apply() 로 반영
 //  createSnapshotTrigger()       … 매월 1일 07시 트리거 등록 (기존 일일 4건 불침범)
 //  listAllTriggers()             … 프로젝트 트리거 전체 목록 (충돌 점검용)
+//
+//  ★ 저장 위치 (v1.1) — 공유 드라이브 폴더
+//    · 폴더 ID 는 코드에 하드코딩하지 않고 **Script Properties SNAPSHOT_FOLDER_ID** 에서만 읽는다
+//      → 폴더를 바꿀 때 코드 수정 불필요 ([프로젝트 설정 → 스크립트 속성] 에서 값만 변경)
+//    · SpreadsheetApp.create() 는 항상 내 드라이브 루트에 만들므로 **생성 직후 이동**한다
+//    · 이동·생성은 DriveApp 대신 **Drive 고급 서비스(Drive API v3)** 사용 —
+//      DriveApp.moveTo() 는 공유 드라이브 대상에서 실패할 수 있다.
+//      files.update + addParents/removeParents + supportsAllDrives:true
+//      (appsscript.json 의 enabledAdvancedServices 에 Drive v3 활성화 필요)
+//    · PDF 도 같은 폴더에 Drive API files.create + supportsAllDrives 로 생성
+//    · **위치는 하드 전제조건** — 폴더 접근 실패, 폴더 아님, 휴지통, 권한 없음,
+//      아카이브가 폴더 밖에 있음 → 전부 **로그 남기고 중단**. 내 드라이브에 조용히 만들지 않는다
+//      ("잘못된 위치에 쌓이는 게 더 나쁘다")
+//
+//  ★ 트리거 실행 실패 알림 (v1.1) — snap_abort()
+//    월 1회 작업이라 조용히 실패하면 몇 달 뒤에나 알게 되는 것이 가장 위험하다.
+//    시간 기반 트리거는 e.triggerUid 를 넘기고 수동 실행은 e 가 undefined 이므로
+//    이걸로 컨텍스트를 판별해 **트리거 중단 시에만 예외를 throw** → 실패 알림 메일 발송.
+//    throw 안 하는 것: 같은 이름 탭 존재(정상 멱등) · PDF 중복 스킵 · PDF export 실패
+//    (마지막 건은 "시트 기록 유지 + 로그만" 기존 스펙 유지 → PDF 지속 실패는 메일이 오지 않음)
 //
 //  ★ 데이터 원천 — 대시보드와 동일함을 '구조적으로' 보장한다
 //    별도 파서를 만들지 않고 Code.gs 의 readOrgStructured(ss) 를 그대로 호출한다.
@@ -18,8 +42,9 @@
 //
 //  ★ 쓰기 범위 — 원본 시트는 절대 건드리지 않는다
 //    · [조직도] · [인사카드_발령] 등 raw 데이터 스프레드시트에는 **읽기만** 한다
-//    · 쓰기는 전용 아카이브 스프레드시트 "윌로그 조직도 스냅샷 아카이브" 한 곳뿐
+//    · 스프레드시트 쓰기는 전용 아카이브 "윌로그 조직도 스냅샷 아카이브" 한 곳뿐
 //      (없으면 최초 1회 생성 → ID를 Script Properties SNAP_ARCHIVE_SS_ID 에 저장)
+//    · Drive 쓰기는 지정 폴더 안에서만 — 파일 **생성·이동**뿐이고 삭제·덮어쓰기는 없다
 //    · readOrgStructured 내부의 getOrCreate 가 시트를 생성하지 않도록
 //      호출 전에 [조직도] 존재를 직접 확인한다 (없으면 중단)
 //
@@ -27,13 +52,16 @@
 //    · 같은 이름 탭이 이미 있으면 덮어쓰지 않고 로그 경고 후 종료 (재실행 안전)
 //    · PDF 도 동일 파일명이 이미 있으면 만들지 않고 경고만 (파일 삭제·덮어쓰기 없음)
 //    · TEST 탭만 예외적으로 덮어쓴다 (검수 중 반복 실행 대비, 배너로 소유권 확인)
+//    · 이미 대상 폴더에 있는 파일은 이동하지 않는다 (migrate 재실행 안전)
 //
 //  ※ 웹앱 라우트와 무관한 내부 배치 → clasp push 만으로 반영 (새 버전 배포 불필요)
-//  ※ 단 PDF 저장 때문에 Drive·외부요청 권한이 추가된다 → 최초 수동 실행 시 재승인 1회 필요
+//  ※ 단 PDF 저장·폴더 이동 때문에 Drive·외부요청 권한이 추가되고, v1.1 에서
+//    Drive 고급 서비스가 켜지므로 **최초 수동 실행 시 권한 재승인**이 필요하다
 // ================================================================
 
 // ── 상수 ────────────────────────────────────────────────────────
-var SNAP_PROP_KEY      = 'SNAP_ARCHIVE_SS_ID';               // Script Properties 키
+var SNAP_PROP_KEY      = 'SNAP_ARCHIVE_SS_ID';               // Script Properties 키 (아카이브 파일 ID)
+var SNAP_FOLDER_PROP   = 'SNAPSHOT_FOLDER_ID';               // ★ Script Properties 키 (저장 폴더 ID)
 var SNAP_ARCHIVE_NAME  = '윌로그 조직도 스냅샷 아카이브';      // 아카이브 스프레드시트 파일명
 var SNAP_TAB_PREFIX    = '조직도_';
 var SNAP_TEST_TAB      = '조직도_TEST';
@@ -65,9 +93,16 @@ function snap_posRank(pos) {
 //  진입점
 // ================================================================
 
-/** 트리거 진입점 — 매월 1일 07시. 인자(트리거 이벤트 객체)는 의도적으로 무시한다. */
-function snapshotOrgChart() {
-  return snap_run({ test: false, pdf: true });
+/**
+ * 트리거 진입점 — 매월 1일 07시.
+ * ★ 시간 기반 트리거는 e.triggerUid 를 넘기고 편집기 수동 실행은 e 가 undefined 다.
+ *   이 차이로 실행 컨텍스트를 판별해, **트리거 실행이 전제조건 실패로 중단될 때는
+ *   예외를 throw** 한다 → Apps Script 실패 알림 메일이 발송된다.
+ *   월 1회 작업이라 조용히 실패하면 몇 달 뒤에나 알게 되는 것이 가장 위험하므로.
+ *   (수동 실행은 지금처럼 로그만 남긴다 — 편집기에서 바로 보이므로)
+ */
+function snapshotOrgChart(e) {
+  return snap_run({ test: false, pdf: true, fromTrigger: !!(e && e.triggerUid) });
 }
 
 /**
@@ -86,6 +121,123 @@ function snapshotOrgChartPreviewLog() {
 
 
 // ================================================================
+//  저장 폴더 설정 — Script Properties SNAPSHOT_FOLDER_ID
+//
+//  ★ 런타임은 폴더 ID 를 **Script Properties 에서만** 읽는다.
+//    코드 상수로 두지 않으므로, 폴더를 바꿀 때는 코드를 고칠 필요 없이
+//    [프로젝트 설정 → 스크립트 속성] 에서 SNAPSHOT_FOLDER_ID 값만 바꾸면 된다.
+//    (아래 setSnapshotFolderId() 는 최초 1회 입력 편의용 부트스트랩일 뿐,
+//     실행 경로에서는 이 함수를 호출하지 않는다)
+// ================================================================
+
+/**
+ * ★ 먼저 이걸 실행하세요 — 폴더 접근 진단 (읽기만, 쓰기·이동·생성 전부 없음)
+ * 폴더가 존재하는지 / 공유 드라이브인지 / 파일을 넣을 권한이 있는지 확인한다.
+ */
+function checkSnapshotFolder() {
+  var out = [];
+  var id = String(PropertiesService.getScriptProperties().getProperty(SNAP_FOLDER_PROP) || '').trim();
+
+  out.push('── 스냅샷 저장 폴더 진단 (읽기 전용) ──');
+  out.push('Script Properties [' + SNAP_FOLDER_PROP + '] = ' + (id || '(미설정)'));
+
+  if (!id) {
+    out.push('');
+    out.push('⛔ 폴더 ID 가 설정되지 않았습니다. 아래 중 하나로 설정하세요.');
+    out.push('   ① setSnapshotFolderId() 실행 (한 번만)');
+    out.push('   ② Apps Script → 프로젝트 설정 → 스크립트 속성 →');
+    out.push('      속성 ' + SNAP_FOLDER_PROP + ' / 값 <폴더 ID> 추가');
+    Logger.log(out.join('\n'));
+    return { ok: false, reason: 'SNAPSHOT_FOLDER_ID 미설정' };
+  }
+
+  // ── Drive 고급 서비스 확인 ──
+  if (typeof Drive === 'undefined' || !Drive.Files) {
+    out.push('');
+    out.push('⛔ Drive 고급 서비스(Drive API v3)가 활성화되지 않았습니다.');
+    out.push('   appsscript.json 의 enabledAdvancedServices 를 반영(clasp push)했는지 확인하세요.');
+    Logger.log(out.join('\n'));
+    return { ok: false, reason: 'Drive 고급 서비스 비활성' };
+  }
+
+  // ── 폴더 메타데이터 조회 ──
+  var f;
+  try {
+    f = Drive.Files.get(id, {
+      fields: 'id,name,mimeType,driveId,trashed,capabilities(canAddChildren,canEdit,canListChildren)',
+      supportsAllDrives: true
+    });
+  } catch (e) {
+    out.push('');
+    out.push('⛔ 폴더를 조회할 수 없습니다: ' + e.message);
+    out.push('   확인 사항: ① 폴더 ID 오타 ② 이 계정(' + snap_effectiveUser() + ')이 해당 공유 드라이브 멤버인지');
+    out.push('             ③ Drive API 권한 재승인 여부');
+    Logger.log(out.join('\n'));
+    return { ok: false, reason: '폴더 조회 실패: ' + e.message };
+  }
+
+  var isFolder = f.mimeType === 'application/vnd.google-apps.folder';
+  var cap = f.capabilities || {};
+  out.push('');
+  out.push('폴더명       : ' + f.name);
+  out.push('타입         : ' + f.mimeType + (isFolder ? '  ✅ 폴더' : '  ⛔ 폴더가 아님'));
+  out.push('휴지통       : ' + (f.trashed ? '⛔ 휴지통에 있음' : '아님'));
+  out.push('공유 드라이브: ' + (f.driveId ? '✅ 예 (driveId=' + f.driveId + ')' : '아니오 (내 드라이브)'));
+  out.push('파일 추가 권한: ' + (cap.canAddChildren ? '✅ 가능' : '⛔ 없음 — 콘텐츠 관리자 이상 권한 필요'));
+  out.push('목록 조회 권한: ' + (cap.canListChildren ? '✅ 가능' : '⛔ 없음'));
+  out.push('실행 계정     : ' + snap_effectiveUser());
+
+  // ── 아카이브 파일 현재 위치 ──
+  var arcId = String(PropertiesService.getScriptProperties().getProperty(SNAP_PROP_KEY) || '').trim();
+  out.push('');
+  out.push('아카이브 파일 [' + SNAP_PROP_KEY + '] = ' + (arcId || '(미설정 — 아직 생성 안 됨)'));
+  if (arcId) {
+    try {
+      var a = Drive.Files.get(arcId, { fields: 'id,name,parents,trashed', supportsAllDrives: true });
+      var par = (a.parents || []).join(',');
+      out.push('  파일명   : ' + a.name + (a.trashed ? '  ⛔ 휴지통' : ''));
+      out.push('  현재 위치: ' + (par || '(부모 없음)'));
+      out.push('  대상 폴더: ' + id);
+      out.push('  판정     : ' + (par === id ? '✅ 이미 대상 폴더에 있음'
+                                            : '⚠ 위치 불일치 → migrateSnapshotFilesToFolder() 로 이동 필요'));
+    } catch (e) {
+      out.push('  ⛔ 아카이브 파일 조회 실패: ' + e.message);
+    }
+  }
+
+  var ok = isFolder && !f.trashed && !!cap.canAddChildren;
+  out.push('');
+  out.push(ok ? '✅ 결론: 이 폴더에 스냅샷을 저장할 수 있습니다.'
+              : '⛔ 결론: 아직 저장할 수 없습니다. 위 ⛔ 항목을 해결하세요.');
+  Logger.log(out.join('\n'));
+  return { ok: ok, folderId: id, name: f.name, sharedDrive: !!f.driveId, canAddChildren: !!cap.canAddChildren };
+}
+
+/**
+ * 저장 폴더 ID 를 Script Properties 에 기록한다 — **최초 1회 부트스트랩용**.
+ *
+ * ★★ 이 함수는 사용 후 삭제 예정이다 (2026-08-03 Ted 결정).
+ *   순서: setSnapshotFolderId() 실행 → checkSnapshotFolder() 확인
+ *        → migrateSnapshotFilesToFolder()/...Apply() 로 이동 완료
+ *        → **이 함수 전체 삭제 + clasp push**
+ *   이유: 코드에 남은 리터럴이 나중에 실제 스크립트 속성 값과 어긋나면,
+ *        문서/코드의 값을 믿고 판단하다 틀리는 사고가 난다
+ *        (AI 비용 `ai_` 단위 오기가 10배 표시 버그의 원인이었던 것과 같은 종류).
+ *   삭제 후 폴더 변경은 [프로젝트 설정 → 스크립트 속성] 에서 SNAPSHOT_FOLDER_ID 를
+ *   직접 수정한다 — 런타임은 속성만 읽으므로 코드 수정이 필요 없다.
+ */
+function setSnapshotFolderId() {
+  var FOLDER_ID = '1gJvL171EeBnZTz6psOdsNpOo29_D2Y9z';   // 2026-08-03 Ted 지정 (공유 드라이브 폴더)
+  PropertiesService.getScriptProperties().setProperty(SNAP_FOLDER_PROP, FOLDER_ID);
+  var msg = '✅ ' + SNAP_FOLDER_PROP + ' = ' + FOLDER_ID + ' 저장 완료\n' +
+            '   이어서 checkSnapshotFolder() 로 접근 가능한지 확인하세요.\n' +
+            '   ※ 마이그레이션까지 끝나면 이 함수(setSnapshotFolderId)는 삭제할 예정입니다.';
+  Logger.log(msg);
+  return msg;
+}
+
+
+// ================================================================
 //  본체
 // ================================================================
 function snap_run(opts) {
@@ -93,8 +245,8 @@ function snap_run(opts) {
 
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) {
-    Logger.log('⛔ 다른 실행이 진행 중입니다. 중단.');
-    return;
+    // 트리거 실행이 락을 못 잡으면 그 달 스냅샷이 조용히 누락된다 → 알림 대상
+    return snap_abort('⛔ 다른 실행이 진행 중입니다. 중단.', opts);
   }
 
   try {
@@ -106,8 +258,7 @@ function snap_run(opts) {
     // 과거 월 백필이 필요하면 snap_run({ test:false, pdf:true, ym:'2026.09' }) 형태로 호출.
     var ym = String(opts.ym || '').trim();
     if (ym && !/^\d{4}[.\-]\d{1,2}$/.test(ym)) {
-      Logger.log('⛔ ym 형식 오류: "' + ym + '" (예: 2026.08) → 중단');
-      return;
+      return snap_abort('⛔ ym 형식 오류: "' + ym + '" (예: 2026.08) → 중단', opts);
     }
     var refYear, refMonth;
     if (ym) {
@@ -124,22 +275,19 @@ function snap_run(opts) {
     var srcSs = SpreadsheetApp.getActiveSpreadsheet();
     // readOrgStructured 내부의 getOrCreate 가 빈 시트를 만들지 않도록 사전 확인
     if (!srcSs.getSheetByName(SHEET_ORG)) {
-      Logger.log('⛔ [' + SHEET_ORG + '] 시트를 찾을 수 없습니다 → 중단 (아무것도 쓰지 않음)');
-      return;
+      return snap_abort('⛔ [' + SHEET_ORG + '] 시트를 찾을 수 없습니다 → 중단 (아무것도 쓰지 않음)', opts);
     }
 
     var all = readOrgStructured(srcSs);   // ★ 대시보드 action=read 의 emps 와 동일한 함수
     if (!all || !all.length) {
-      Logger.log('⛔ [' + SHEET_ORG + '] 에서 읽은 인원이 0명 → 중단 (아무것도 쓰지 않음)');
-      return;
+      return snap_abort('⛔ [' + SHEET_ORG + '] 에서 읽은 인원이 0명 → 중단 (아무것도 쓰지 않음)', opts);
     }
 
     // 재직 판정 = 프론트와 동일 (재직상태 !== '퇴직' → 퇴직예정 포함)
     var warn   = [];
     var active = all.filter(function(e) { return snap_isActive(e, warn); });
     if (!active.length) {
-      Logger.log('⛔ 재직자 0명으로 집계됨 → 중단 (재직상태 컬럼 확인 필요)');
-      return;
+      return snap_abort('⛔ 재직자 0명으로 집계됨 → 중단 (재직상태 컬럼 확인 필요)', opts);
     }
 
     var retiring = active.filter(function(e) { return snap_status(e) === '퇴직예정'; }).length;
@@ -179,9 +327,13 @@ function snap_run(opts) {
       return { refLabel: refLabel, count: active.length, byBu: buStat, warn: warn, wrote: false };
     }
 
-    // ── ④ 아카이브 스프레드시트 확보 ───────────────────────────
-    var arc = snap_openArchive();
-    if (!arc.ss) { Logger.log(arc.error); return; }
+    // ── ④ 저장 폴더 확인 (하드 전제조건) → 아카이브 스프레드시트 확보 ──
+    //     폴더에 접근할 수 없으면 내 드라이브에 조용히 만들지 않고 중단한다
+    var folder = snap_resolveFolder();
+    if (folder.error) { return snap_abort(folder.error, opts); }
+
+    var arc = snap_openArchive(folder);
+    if (!arc.ss) { return snap_abort(arc.error, opts); }
     var arcSs = arc.ss;
 
     // ── ⑤ 멱등성 — 같은 이름 탭이 있으면 덮어쓰지 않는다 ───────
@@ -219,6 +371,8 @@ function snap_run(opts) {
 
     var msg = ['✅ 스냅샷 기록 완료',
                '  아카이브 : ' + arcSs.getName() + (arc.created ? '  (★ 이번 실행에서 새로 생성)' : ''),
+               '  저장 폴더: ' + folder.name + '  (' + folder.id + ')' +
+                              (folder.shared ? '  ※ 공유 드라이브' : '  ※ 내 드라이브'),
                '  URL      : ' + arcSs.getUrl(),
                '  탭       : [' + tabName + ']' + (opts.test ? '  ※ 검수용 TEST 탭' : ''),
                '  기준일   : ' + refLabel,
@@ -229,7 +383,7 @@ function snap_run(opts) {
     var pdf = null;
     if (opts.pdf) {
       try {
-        pdf = snap_exportPdf(arcSs, sh, refLabel, opts.test);
+        pdf = snap_exportPdf(arcSs, sh, refLabel, opts.test, folder);
         msg.push(pdf.skipped ? '  PDF      : ⚠ ' + pdf.message
                              : '  PDF      : ' + pdf.name + '  (' + pdf.folder + ')');
       } catch (e) {
@@ -254,15 +408,121 @@ function snap_run(opts) {
 
 
 // ================================================================
-//  아카이브 스프레드시트 확보 (없으면 최초 1회 생성 + ID 저장)
+//  저장 폴더 해석 — 실패하면 **절대 내 드라이브에 만들지 않고 중단**
+//  ("잘못된 위치에 쌓이는 게 더 나쁘다" — 위치는 하드 전제조건)
 // ================================================================
-function snap_openArchive() {
+function snap_resolveFolder() {
+  var id = String(PropertiesService.getScriptProperties().getProperty(SNAP_FOLDER_PROP) || '').trim();
+
+  if (!id) {
+    return { error:
+      '⛔ 저장 폴더가 설정되지 않았습니다 (Script Properties ' + SNAP_FOLDER_PROP + ').\n' +
+      '   setSnapshotFolderId() 를 1회 실행하거나 [프로젝트 설정 → 스크립트 속성] 에서 직접 추가하세요.\n' +
+      '   → 내 드라이브에 임의로 만들지 않고 중단합니다.' };
+  }
+  if (typeof Drive === 'undefined' || !Drive.Files) {
+    return { error:
+      '⛔ Drive 고급 서비스(Drive API v3)가 비활성 상태입니다. appsscript.json 반영(clasp push) 여부를 확인하세요.\n' +
+      '   → 공유 드라이브 이동이 불가능하므로 중단합니다.' };
+  }
+
+  var f;
+  try {
+    f = Drive.Files.get(id, {
+      fields: 'id,name,mimeType,driveId,trashed,capabilities(canAddChildren)',
+      supportsAllDrives: true
+    });
+  } catch (e) {
+    return { error:
+      '⛔ 저장 폴더를 조회할 수 없습니다 (' + id + '): ' + e.message + '\n' +
+      '   폴더 ID·공유 드라이브 멤버십·권한 승인을 확인하세요. checkSnapshotFolder() 로 진단 가능.\n' +
+      '   → 내 드라이브에 임의로 만들지 않고 중단합니다.' };
+  }
+
+  if (f.mimeType !== 'application/vnd.google-apps.folder') {
+    return { error: '⛔ 지정된 ID 가 폴더가 아닙니다 (' + f.mimeType + '): ' + id + ' → 중단' };
+  }
+  if (f.trashed) {
+    return { error: '⛔ 저장 폴더가 휴지통에 있습니다: ' + f.name + ' (' + id + ') → 중단' };
+  }
+  if (!f.capabilities || !f.capabilities.canAddChildren) {
+    return { error:
+      '⛔ 저장 폴더에 파일을 추가할 권한이 없습니다: ' + f.name + ' (' + id + ')\n' +
+      '   실행 계정 ' + snap_effectiveUser() + ' 에게 콘텐츠 관리자 이상 권한이 필요합니다. → 중단' };
+  }
+
+  return { id: id, name: f.name, driveId: f.driveId || '', shared: !!f.driveId };
+}
+
+/** 파일의 현재 부모 폴더 ID 목록 */
+function snap_parentsOf(fileId) {
+  var f = Drive.Files.get(fileId, { fields: 'parents', supportsAllDrives: true });
+  return f.parents || [];
+}
+
+/**
+ * 부모 폴더 ID 목록 → 사람이 읽을 수 있는 "이름 (ID)" 문자열.
+ * 마이그레이션 dry-run 에서 무관한 파일이 섞였는지 판단하려면 ID 보다 폴더명이 필요하다.
+ * 조회 실패하면 ID 를 그대로 보여준다 (진단을 막지 않도록).
+ */
+var SNAP_FOLDER_NAME_CACHE = {};
+function snap_folderLabel(parents) {
+  if (!parents || !parents.length) return '(부모 없음)';
+  return parents.map(function(pid) {
+    if (SNAP_FOLDER_NAME_CACHE[pid]) return SNAP_FOLDER_NAME_CACHE[pid];
+    var label;
+    try {
+      var f = Drive.Files.get(pid, { fields: 'id,name,driveId', supportsAllDrives: true });
+      label = '내 드라이브 루트';
+      // 루트 폴더는 이름이 'My Drive'/'내 드라이브' 로 오거나 driveId 가 없다
+      if (f.name && f.name !== 'My Drive' && f.name !== '내 드라이브') {
+        label = f.name + (f.driveId ? ' [공유 드라이브]' : '');
+      }
+      label += ' (' + pid + ')';
+    } catch (e) {
+      label = '(조회 실패: ' + pid + ')';
+    }
+    SNAP_FOLDER_NAME_CACHE[pid] = label;
+    return label;
+  }).join(' , ');
+}
+
+/**
+ * 파일을 대상 폴더로 이동 — 공유 드라이브 대응.
+ * DriveApp.moveTo() 는 공유 드라이브 대상에서 실패할 수 있어 Drive API v3 를 쓴다.
+ * 내 드라이브 → 공유 드라이브 이동은 기존 부모를 removeParents 로 함께 제거해야 한다.
+ */
+function snap_moveToFolder(fileId, folderId) {
+  var cur = snap_parentsOf(fileId);
+  if (cur.length === 1 && cur[0] === folderId) return { moved: false, already: true, from: cur };
+
+  Drive.Files.update({}, fileId, null, {
+    addParents: folderId,
+    removeParents: cur.join(','),
+    supportsAllDrives: true,
+    fields: 'id,parents'
+  });
+
+  var after = snap_parentsOf(fileId);
+  if (after.indexOf(folderId) < 0) {
+    throw new Error('이동 후에도 대상 폴더가 부모에 없습니다 (현재: ' + after.join(',') + ')');
+  }
+  return { moved: true, from: cur, to: after };
+}
+
+
+// ================================================================
+//  아카이브 스프레드시트 확보 (없으면 최초 1회 생성 → 지정 폴더로 이동)
+//  ※ 호출 전에 snap_resolveFolder() 로 폴더 접근이 확인돼 있어야 한다
+// ================================================================
+function snap_openArchive(folder) {
   var props = PropertiesService.getScriptProperties();
   var id    = String(props.getProperty(SNAP_PROP_KEY) || '').trim();
 
   if (id) {
+    var ss;
     try {
-      return { ss: SpreadsheetApp.openById(id), created: false };
+      ss = SpreadsheetApp.openById(id);
     } catch (e) {
       // 휴지통 이동·권한 상실 등. 조용히 새로 만들면 과거 스냅샷이 고아가 되므로 중단한다.
       return { ss: null, error:
@@ -272,11 +532,40 @@ function snap_openArchive() {
         '   대응 : 파일이 휴지통에 있으면 복원하세요. 정말 새로 만들려면 Script Properties 의 ' +
         SNAP_PROP_KEY + ' 값을 지운 뒤 재실행하세요 (과거 스냅샷은 기존 파일에 그대로 남습니다).' };
     }
+
+    // ★ 위치는 하드 전제조건 — 대상 폴더 밖이면 쓰지 않고 중단한다 (자동 이동도 하지 않음)
+    var par;
+    try { par = snap_parentsOf(id); }
+    catch (e) {
+      return { ss: null, error: '⛔ 아카이브 파일의 위치를 확인할 수 없습니다 (' + id + '): ' + e.message + ' → 중단' };
+    }
+    if (par.indexOf(folder.id) < 0) {
+      return { ss: null, error:
+        '⛔ 아카이브 파일이 지정 폴더 밖에 있습니다 → 기록하지 않고 중단합니다.\n' +
+        '   파일     : ' + SNAP_ARCHIVE_NAME + ' (' + id + ')\n' +
+        '   현재 위치: ' + (par.join(',') || '(부모 없음)') + '\n' +
+        '   대상 폴더: ' + folder.name + ' (' + folder.id + ')\n' +
+        '   대응     : migrateSnapshotFilesToFolder() 로 확인 후 ...Apply() 로 이동하세요.' };
+    }
+
+    return { ss: ss, created: false };
   }
 
-  // 최초 1회 생성 — 내 드라이브 루트에 생성된다 (원하는 폴더로 옮겨도 ID 기반이라 계속 동작)
+  // 최초 1회 생성 — SpreadsheetApp.create() 는 항상 내 드라이브 루트에 만들므로 즉시 이동한다
   var ss = SpreadsheetApp.create(SNAP_ARCHIVE_NAME);
-  props.setProperty(SNAP_PROP_KEY, ss.getId());
+  props.setProperty(SNAP_PROP_KEY, ss.getId());   // 실패해도 중복 생성되지 않도록 먼저 저장
+
+  try {
+    snap_moveToFolder(ss.getId(), folder.id);
+  } catch (e) {
+    return { ss: null, error:
+      '⛔ 아카이브 파일을 지정 폴더로 이동하지 못했습니다 → 기록하지 않고 중단합니다.\n' +
+      '   파일 : ' + SNAP_ARCHIVE_NAME + ' (' + ss.getId() + ')  ※ 지금은 내 드라이브 루트에 있습니다\n' +
+      '   대상 : ' + folder.name + ' (' + folder.id + ')\n' +
+      '   원인 : ' + e.message + '\n' +
+      '   대응 : 권한 확인 후 migrateSnapshotFilesToFolder() → ...Apply() 로 이동하세요.\n' +
+      '         (파일 ID 는 Script Properties 에 저장됐으므로 재실행해도 중복 생성되지 않습니다)' };
+  }
 
   // 기본 빈 시트를 안내 탭으로 재활용 (빈 '시트1' 방치 방지)
   try {
@@ -287,9 +576,11 @@ function snap_openArchive() {
       '· SnapshotOrgChart.gs 의 snapshotOrgChart() 가 매월 1일 07시에 [조직도_YYYY.MM.01] 탭을 자동 생성합니다.\n' +
       '· 각 탭은 그 달 1일 기준 재직자 명단(퇴직예정 포함)이며, 생성 후에는 자동으로 수정되지 않습니다.\n' +
       '· 같은 이름 탭이 있으면 덮어쓰지 않습니다. 수정이 필요하면 탭을 직접 편집하세요.\n' +
-      '· 같은 폴더에 ' + SNAP_PDF_PREFIX + 'YYYY.MM.01.pdf 가 함께 저장됩니다.\n' +
+      '· 같은 폴더(' + folder.name + ')에 ' + SNAP_PDF_PREFIX + 'YYYY.MM.01.pdf 가 함께 저장됩니다.\n' +
       '· 이 파일의 ID 는 Apps Script 프로젝트의 Script Properties(' + SNAP_PROP_KEY + ')에 저장돼 있습니다.\n' +
-      '  이 파일을 삭제하면 다음 실행에서 오류가 나므로, 옮기더라도 삭제하지 마세요.'
+      '· ★ 이 파일을 다른 폴더로 옮기거나 삭제하면 다음 실행이 중단됩니다.\n' +
+      '  저장 위치를 바꾸려면 스크립트 속성 ' + SNAP_FOLDER_PROP + ' 를 수정하고\n' +
+      '  migrateSnapshotFilesToFolder() 로 기존 파일을 함께 옮기세요.'
     ).setWrap(true).setVerticalAlignment('top');
     first.setColumnWidth(1, 720);
     first.setRowHeight(1, 160);
@@ -374,21 +665,25 @@ function snap_writeTab(sh, d) {
 //  PDF export → 아카이브 스프레드시트와 같은 Drive 폴더에 저장
 //  실패 시 예외를 던지고 호출부가 로그로만 처리한다 (시트 기록은 유지)
 // ================================================================
-function snap_exportPdf(arcSs, sh, refLabel, isTest) {
+function snap_exportPdf(arcSs, sh, refLabel, isTest, folder) {
   var name = isTest
     ? SNAP_PDF_PREFIX + 'TEST_' + Utilities.formatDate(new Date(), SNAP_TZ, 'yyyyMMdd-HHmm') + '.pdf'
     : SNAP_PDF_PREFIX + refLabel + '.pdf';
 
-  // 저장 폴더 = 아카이브 스프레드시트의 부모 폴더 (없으면 내 드라이브 루트)
-  var parents = DriveApp.getFileById(arcSs.getId()).getParents();
-  var folder  = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
-
+  // 저장 폴더 = SNAPSHOT_FOLDER_ID 로 지정된 폴더 (아카이브 파일과 동일 폴더)
+  //   DriveApp.getFolderById().createFile() 대신 Drive API v3 를 쓴다 — 공유 드라이브 보장
   // 동일 파일명이 이미 있으면 만들지 않는다 (삭제·덮어쓰기 없음)
-  var dup = folder.getFilesByName(name);
-  if (dup.hasNext()) {
-    return { skipped: true, name: name, folder: folder.getName(),
+  var dup = Drive.Files.list({
+    q: "'" + folder.id + "' in parents and name = '" + name.replace(/'/g, "\\'") + "' and trashed = false",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    fields: 'files(id,name)',
+    pageSize: 2
+  });
+  if (dup && dup.files && dup.files.length) {
+    return { skipped: true, name: name, folder: folder.name,
              message: '동일 파일명이 이미 있어 PDF 를 만들지 않았습니다: ' + name +
-                      ' (' + folder.getName() + ') — 시트 기록은 정상' };
+                      ' (' + folder.name + ') — 시트 기록은 정상' };
   }
 
   var url = 'https://docs.google.com/spreadsheets/d/' + arcSs.getId() + '/export?' + [
@@ -416,8 +711,115 @@ function snap_exportPdf(arcSs, sh, refLabel, isTest) {
                     String(resp.getContentText() || '').slice(0, 200));
   }
 
-  var file = folder.createFile(resp.getBlob().setName(name));
-  return { skipped: false, name: name, folder: folder.getName(), url: file.getUrl() };
+  var file = Drive.Files.create(
+    { name: name, parents: [folder.id], mimeType: 'application/pdf' },
+    resp.getBlob(),
+    { supportsAllDrives: true, fields: 'id,name,webViewLink' }
+  );
+  return { skipped: false, name: name, folder: folder.name, url: file.webViewLink || '' };
+}
+
+
+// ================================================================
+//  [유지보수] 기존 파일을 지정 폴더로 이동
+//    내 드라이브 루트에 이미 만들어진 아카이브 스프레드시트와 PDF 들을
+//    SNAPSHOT_FOLDER_ID 폴더로 옮긴다. 아카이브는 **새로 만들지 않고 이동**하므로
+//    Script Properties 의 파일 ID 가 그대로 유지된다.
+//    파일 삭제·복사·내용 변경은 하지 않는다 (부모 폴더만 교체).
+// ================================================================
+function migrateSnapshotFilesToFolder()      { return snap_migrate(true); }
+function migrateSnapshotFilesToFolderApply() { return snap_migrate(false); }
+
+function snap_migrate(dryRun) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) { Logger.log('⛔ 다른 실행이 진행 중입니다. 중단.'); return; }
+
+  try {
+    var out = ['── 스냅샷 파일 이동 ' + (dryRun ? '(dry-run — 실제 이동 없음)' : '★ 실제 반영') + ' ──'];
+
+    var folder = snap_resolveFolder();
+    if (folder.error) { Logger.log(folder.error); return; }
+    out.push('대상 폴더: ' + folder.name + ' (' + folder.id + ')' + (folder.shared ? ' ※ 공유 드라이브' : ''));
+    out.push('');
+
+    var targets = [];
+
+    // ① 아카이브 스프레드시트 (Script Properties 의 ID — 새로 만들지 않고 이동)
+    var arcId = String(PropertiesService.getScriptProperties().getProperty(SNAP_PROP_KEY) || '').trim();
+    if (!arcId) {
+      out.push('아카이브 스프레드시트: (' + SNAP_PROP_KEY + ' 미설정 — 아직 생성 안 됨, 이동 대상 아님)');
+    } else {
+      try {
+        var a = Drive.Files.get(arcId, { fields: 'id,name,parents,trashed,mimeType', supportsAllDrives: true });
+        targets.push({ kind: '아카이브', id: a.id, name: a.name, parents: a.parents || [], trashed: a.trashed });
+      } catch (e) {
+        out.push('⛔ 아카이브 파일 조회 실패 (' + arcId + '): ' + e.message);
+      }
+    }
+
+    // ② PDF — **내 드라이브 루트에 있는 것만** 대상 ('root' in parents)
+    //    드라이브 전체 검색은 수동으로 내보낸 동명 PDF까지 끌어올 수 있어 범위를 좁혔다.
+    //    루트가 아닌 곳에 있는 PDF는 의도적으로 건드리지 않는다.
+    try {
+      var q = "'root' in parents" +
+              " and name contains '" + SNAP_PDF_PREFIX.replace(/'/g, "\\'") + "'" +
+              " and mimeType = 'application/pdf' and trashed = false";
+      var res = Drive.Files.list({
+        q: q, supportsAllDrives: true, includeItemsFromAllDrives: true,
+        fields: 'files(id,name,parents)', pageSize: 100
+      });
+      (res.files || []).forEach(function(f) {
+        if (f.name.indexOf(SNAP_PDF_PREFIX) !== 0) return;   // contains → 접두사 일치만 채택
+        targets.push({ kind: 'PDF', id: f.id, name: f.name, parents: f.parents || [], trashed: false });
+      });
+      out.push('PDF 검색 범위: 내 드라이브 루트, 이름이 "' + SNAP_PDF_PREFIX + '" 로 시작하는 PDF → ' +
+               (res.files || []).length + '건 발견');
+      out.push('');
+    } catch (e) {
+      out.push('⛔ PDF 검색 실패: ' + e.message);
+    }
+
+    if (!targets.length) {
+      out.push('이동할 파일이 없습니다.');
+      Logger.log(out.join('\n'));
+      return { moved: 0, already: 0, failed: 0 };
+    }
+
+    var moved = 0, already = 0, failed = 0;
+    targets.forEach(function(t) {
+      var inTarget = t.parents.length === 1 && t.parents[0] === folder.id;
+      var label = '[' + t.kind + '] ' + t.name;
+
+      if (t.trashed)  { out.push('  ⚠ 건너뜀 (휴지통): ' + label); failed++; return; }
+      if (inTarget)   { out.push('  · 이미 대상 폴더: ' + label); already++; return; }
+
+      if (dryRun) {
+        // 현재 위치를 폴더 '이름' 으로 함께 보여준다 — 무관한 파일이 섞였는지 사람이 판단할 수 있게
+        out.push('  → 이동 예정: ' + label);
+        out.push('      현재 위치: ' + snap_folderLabel(t.parents) + '  →  ' + folder.name);
+        moved++;
+        return;
+      }
+      try {
+        var r = snap_moveToFolder(t.id, folder.id);
+        out.push('  ✅ 이동 완료: ' + label + '  (' + (r.from.join(',') || '-') + ' → ' + folder.id + ')');
+        moved++;
+      } catch (e) {
+        out.push('  ⛔ 이동 실패: ' + label + ' — ' + e.message);
+        failed++;
+      }
+    });
+
+    out.push('');
+    out.push((dryRun ? '이동 예정 ' : '이동 완료 ') + moved + '건 · 이미 대상 폴더 ' + already + '건 · 실패/건너뜀 ' + failed + '건');
+    if (dryRun && moved) out.push('→ 실제로 옮기려면 migrateSnapshotFilesToFolderApply() 를 실행하세요.');
+    if (!dryRun && moved) out.push('→ checkSnapshotFolder() 로 위치를 재확인하세요.');
+    Logger.log(out.join('\n'));
+    return { moved: moved, already: already, failed: failed };
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 
@@ -504,6 +906,29 @@ function snap_countByBu(list) {
 
 function snap_pad(n) {
   return (Number(n) < 10 ? '0' : '') + Number(n);
+}
+
+/**
+ * 중단 처리 — 로그를 남기고, **트리거 실행이면 예외를 throw** 한다.
+ *   throw 하면 Apps Script 가 실패 알림 메일을 보내므로 조용한 실패를 막을 수 있다.
+ *   (월 1회 작업이라 몇 달 뒤에 발견되는 것이 가장 위험)
+ *   수동 실행(fromTrigger 아님)은 편집기에서 로그가 바로 보이므로 throw 하지 않는다.
+ * ※ '같은 이름 탭 존재'(정상 멱등)·'PDF 중복 스킵'·'PDF export 실패' 는 중단이 아니므로
+ *   이 함수를 거치지 않는다 — 기존 스펙대로 로그 경고만 남는다.
+ */
+function snap_abort(msg, opts) {
+  Logger.log(msg);
+  if (opts && opts.fromTrigger) {
+    // 메일 제목·본문에서 읽기 쉽도록 1줄로 압축 (전문은 위 로그에 남아 있다)
+    throw new Error('[조직도 스냅샷 중단] ' + String(msg).replace(/\s+/g, ' ').trim().slice(0, 400));
+  }
+  return { ok: false, aborted: true, wrote: false, reason: String(msg).split('\n')[0] };
+}
+
+/** 실행 계정 — 권한 문제 진단용 (조회 실패 시 빈 문자열 대신 안내 문구) */
+function snap_effectiveUser() {
+  try { return Session.getEffectiveUser().getEmail() || '(확인 불가)'; }
+  catch (e) { return '(확인 불가)'; }
 }
 
 /**
