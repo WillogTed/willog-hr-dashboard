@@ -4,7 +4,7 @@
 // v1.0 (2026-08-03) : 매월 1일 조직도 스냅샷 아카이브 + PDF 보관
 //
 //  checkSnapshotFolder()         … ★ 먼저 실행. 저장 폴더 접근 진단 (읽기만)
-//  setSnapshotFolderId()         … 저장 폴더 ID 를 Script Properties 에 기록 (최초 1회)
+//  (저장 폴더 ID 설정은 [프로젝트 설정 → 스크립트 속성] SNAPSHOT_FOLDER_ID 에서 직접)
 //  snapshotOrgChart()            … 트리거 진입점 (매월 1일 07시). [조직도_YYYY.MM.01] 탭 생성 + PDF
 //  snapshotOrgChartTest()        … ★ 최초 검수용. [조직도_TEST] 탭에만 기록 (재실행 시 덮어씀)
 //  snapshotOrgChartPreviewLog()  … 아무것도 쓰지 않고 집계 결과만 로그로 확인
@@ -13,7 +13,7 @@
 //  listAllTriggers()             … 프로젝트 트리거 전체 목록 (충돌 점검용)
 //
 //  ★ 저장 위치 (v1.1) — 공유 드라이브 폴더
-//    · 폴더 ID 는 코드에 하드코딩하지 않고 **Script Properties SNAPSHOT_FOLDER_ID** 에서만 읽는다
+//    · 폴더 ID 는 코드 어디에도 없다 — **Script Properties SNAPSHOT_FOLDER_ID** 가 유일한 출처
 //      → 폴더를 바꿀 때 코드 수정 불필요 ([프로젝트 설정 → 스크립트 속성] 에서 값만 변경)
 //    · SpreadsheetApp.create() 는 항상 내 드라이브 루트에 만들므로 **생성 직후 이동**한다
 //    · 이동·생성은 DriveApp 대신 **Drive 고급 서비스(Drive API v3)** 사용 —
@@ -29,8 +29,9 @@
 //    월 1회 작업이라 조용히 실패하면 몇 달 뒤에나 알게 되는 것이 가장 위험하다.
 //    시간 기반 트리거는 e.triggerUid 를 넘기고 수동 실행은 e 가 undefined 이므로
 //    이걸로 컨텍스트를 판별해 **트리거 중단 시에만 예외를 throw** → 실패 알림 메일 발송.
-//    throw 안 하는 것: 같은 이름 탭 존재(정상 멱등) · PDF 중복 스킵 · PDF export 실패
-//    (마지막 건은 "시트 기록 유지 + 로그만" 기존 스펙 유지 → PDF 지속 실패는 메일이 오지 않음)
+//    PDF export 실패도 알림 대상이지만, **시트 기록·로그가 끝난 뒤 맨 마지막에** throw 한다
+//    (⑧ 단계) — 시트 기록은 유지돼야 하므로. flush 로 확정된 뒤라 롤백되지 않는다.
+//    throw 안 하는 것: 같은 이름 탭 존재(정상 멱등) · PDF 중복 스킵(동일 파일명 존재)
 //
 //  ★ 데이터 원천 — 대시보드와 동일함을 '구조적으로' 보장한다
 //    별도 파서를 만들지 않고 Code.gs 의 readOrgStructured(ss) 를 그대로 호출한다.
@@ -124,10 +125,8 @@ function snapshotOrgChartPreviewLog() {
 //  저장 폴더 설정 — Script Properties SNAPSHOT_FOLDER_ID
 //
 //  ★ 런타임은 폴더 ID 를 **Script Properties 에서만** 읽는다.
-//    코드 상수로 두지 않으므로, 폴더를 바꿀 때는 코드를 고칠 필요 없이
+//    코드에 값이 없으므로, 폴더를 바꿀 때는 코드를 고칠 필요 없이
 //    [프로젝트 설정 → 스크립트 속성] 에서 SNAPSHOT_FOLDER_ID 값만 바꾸면 된다.
-//    (아래 setSnapshotFolderId() 는 최초 1회 입력 편의용 부트스트랩일 뿐,
-//     실행 경로에서는 이 함수를 호출하지 않는다)
 // ================================================================
 
 /**
@@ -143,10 +142,9 @@ function checkSnapshotFolder() {
 
   if (!id) {
     out.push('');
-    out.push('⛔ 폴더 ID 가 설정되지 않았습니다. 아래 중 하나로 설정하세요.');
-    out.push('   ① setSnapshotFolderId() 실행 (한 번만)');
-    out.push('   ② Apps Script → 프로젝트 설정 → 스크립트 속성 →');
-    out.push('      속성 ' + SNAP_FOLDER_PROP + ' / 값 <폴더 ID> 추가');
+    out.push('⛔ 폴더 ID 가 설정되지 않았습니다.');
+    out.push('   Apps Script → 프로젝트 설정 → 스크립트 속성 →');
+    out.push('   속성 ' + SNAP_FOLDER_PROP + ' / 값 <폴더 ID> 추가 후 다시 실행하세요.');
     Logger.log(out.join('\n'));
     return { ok: false, reason: 'SNAPSHOT_FOLDER_ID 미설정' };
   }
@@ -213,28 +211,10 @@ function checkSnapshotFolder() {
   return { ok: ok, folderId: id, name: f.name, sharedDrive: !!f.driveId, canAddChildren: !!cap.canAddChildren };
 }
 
-/**
- * 저장 폴더 ID 를 Script Properties 에 기록한다 — **최초 1회 부트스트랩용**.
- *
- * ★★ 이 함수는 사용 후 삭제 예정이다 (2026-08-03 Ted 결정).
- *   순서: setSnapshotFolderId() 실행 → checkSnapshotFolder() 확인
- *        → migrateSnapshotFilesToFolder()/...Apply() 로 이동 완료
- *        → **이 함수 전체 삭제 + clasp push**
- *   이유: 코드에 남은 리터럴이 나중에 실제 스크립트 속성 값과 어긋나면,
- *        문서/코드의 값을 믿고 판단하다 틀리는 사고가 난다
- *        (AI 비용 `ai_` 단위 오기가 10배 표시 버그의 원인이었던 것과 같은 종류).
- *   삭제 후 폴더 변경은 [프로젝트 설정 → 스크립트 속성] 에서 SNAPSHOT_FOLDER_ID 를
- *   직접 수정한다 — 런타임은 속성만 읽으므로 코드 수정이 필요 없다.
- */
-function setSnapshotFolderId() {
-  var FOLDER_ID = '1gJvL171EeBnZTz6psOdsNpOo29_D2Y9z';   // 2026-08-03 Ted 지정 (공유 드라이브 폴더)
-  PropertiesService.getScriptProperties().setProperty(SNAP_FOLDER_PROP, FOLDER_ID);
-  var msg = '✅ ' + SNAP_FOLDER_PROP + ' = ' + FOLDER_ID + ' 저장 완료\n' +
-            '   이어서 checkSnapshotFolder() 로 접근 가능한지 확인하세요.\n' +
-            '   ※ 마이그레이션까지 끝나면 이 함수(setSnapshotFolderId)는 삭제할 예정입니다.';
-  Logger.log(msg);
-  return msg;
-}
+// ※ 부트스트랩용 setSnapshotFolderId() 는 2026-08-03 폴더 설정·마이그레이션 완료 후 삭제했다.
+//   폴더 ID 의 유일한 출처는 Script Properties SNAPSHOT_FOLDER_ID 이며,
+//   코드·문서에 값을 복사해 두지 않는다 (실제 설정과 어긋나면 그걸 믿고 틀리게 된다).
+//   폴더 변경: [프로젝트 설정 → 스크립트 속성] 에서 값 수정 → checkSnapshotFolder() 로 확인.
 
 
 // ================================================================
@@ -379,14 +359,18 @@ function snap_run(opts) {
                '  ' + summary,
                '  본부별   : ' + buLine];
 
-    // ── ⑦ PDF export (실패해도 시트 기록은 유지 — 로그만) ──────
-    var pdf = null;
+    // ── ⑦ PDF export ──────────────────────────────────────────
+    //   시트 기록(⑥)은 이미 flush 로 확정됐다. 여기서 예외를 던져도 시트는 롤백되지 않는다
+    //   (Apps Script 스프레드시트 쓰기에 트랜잭션이 없으므로) → 기록 유지 + 알림 둘 다 성립.
+    //   PDF 실패는 시트 기록 후 **맨 마지막에** throw 한다 (아래 ⑧).
+    var pdf = null, pdfErr = null;
     if (opts.pdf) {
       try {
         pdf = snap_exportPdf(arcSs, sh, refLabel, opts.test, folder);
         msg.push(pdf.skipped ? '  PDF      : ⚠ ' + pdf.message
                              : '  PDF      : ' + pdf.name + '  (' + pdf.folder + ')');
       } catch (e) {
+        pdfErr = e;
         msg.push('  PDF      : ⚠ 실패 — ' + e.message +
                  '\n             (시트 기록은 정상 유지됨. 권한 재승인 또는 수동 내보내기로 대응)');
       }
@@ -395,10 +379,19 @@ function snap_run(opts) {
     if (warn.length) msg.push('', '⚠ 경고 ' + warn.length + '건', '  - ' + warn.join('\n  - '));
     Logger.log(msg.join('\n'));
 
+    // ── ⑧ 트리거 실행이면 PDF 실패도 알림 대상 ─────────────────
+    //   PDF 만 조용히 계속 실패하면 몇 달치 PDF 가 비어 있는 것을 늦게 발견하게 된다.
+    //   ★ 반드시 시트 기록·로그가 끝난 뒤에 던진다 — 시트 기록은 유지돼야 하므로.
+    //   ※ pdf.skipped(동일 파일명 존재)는 실패가 아니라 정상 멱등이므로 여기 해당 없음.
+    if (pdfErr && opts.fromTrigger) {
+      throw new Error('[조직도 스냅샷 PDF 실패] ' + tabName + ' 탭 기록은 정상 완료됨. ' +
+                      'PDF 만 실패 — ' + String(pdfErr.message).replace(/\s+/g, ' ').trim().slice(0, 300));
+    }
+
     return {
       refLabel: refLabel, tab: tabName, count: active.length,
       byBu: buStat, warn: warn, wrote: true,
-      archiveUrl: arcSs.getUrl(), pdf: pdf
+      archiveUrl: arcSs.getUrl(), pdf: pdf, pdfError: pdfErr ? pdfErr.message : null
     };
 
   } finally {
@@ -417,7 +410,7 @@ function snap_resolveFolder() {
   if (!id) {
     return { error:
       '⛔ 저장 폴더가 설정되지 않았습니다 (Script Properties ' + SNAP_FOLDER_PROP + ').\n' +
-      '   setSnapshotFolderId() 를 1회 실행하거나 [프로젝트 설정 → 스크립트 속성] 에서 직접 추가하세요.\n' +
+      '   [프로젝트 설정 → 스크립트 속성] 에서 ' + SNAP_FOLDER_PROP + ' 를 추가하세요.\n' +
       '   → 내 드라이브에 임의로 만들지 않고 중단합니다.' };
   }
   if (typeof Drive === 'undefined' || !Drive.Files) {
@@ -913,8 +906,9 @@ function snap_pad(n) {
  *   throw 하면 Apps Script 가 실패 알림 메일을 보내므로 조용한 실패를 막을 수 있다.
  *   (월 1회 작업이라 몇 달 뒤에 발견되는 것이 가장 위험)
  *   수동 실행(fromTrigger 아님)은 편집기에서 로그가 바로 보이므로 throw 하지 않는다.
- * ※ '같은 이름 탭 존재'(정상 멱등)·'PDF 중복 스킵'·'PDF export 실패' 는 중단이 아니므로
- *   이 함수를 거치지 않는다 — 기존 스펙대로 로그 경고만 남는다.
+ * ※ '같은 이름 탭 존재'(정상 멱등)·'PDF 중복 스킵' 은 중단이 아니므로 이 함수를 거치지 않는다.
+ * ※ 'PDF export 실패' 는 snap_run ⑧ 단계에서 따로 처리한다 — 시트 기록을 남긴 뒤 throw 해야
+ *   하므로 여기서 즉시 던지면 안 된다.
  */
 function snap_abort(msg, opts) {
   Logger.log(msg);
