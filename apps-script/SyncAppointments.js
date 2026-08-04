@@ -40,9 +40,13 @@ var SA_PREVIEW_BANNER = '⚡ previewAppointments() 자동 생성 시트입니다
 //   false = [조직도] 재직·퇴직예정 인원만 (CLAUDE.md 6-2 문구 그대로)
 var SA_INCLUDE_LEAVER_HIRE = true;
 
-// 파싱에서 제외할 탭 이름 패턴 (양식·데모·작업중 탭)
+// 파싱에서 제외할 탭 이름 패턴 (양식·데모·작업중 탭 + 오기재로 폐기된 공고 탭)
 //   ※ listGonggoTabs() 로 탭 목록을 확인한 뒤 필요하면 여기에 추가
-var SA_SKIP_TAB_RE = /양식|서식|템플릿|템플렛|샘플|예시|견본|작성중|작업중|백업|template|sample|form|draft|copy|사본/i;
+//   ※ '폐기' (2026-08-04 추가) — 오기재 공고를 정정할 때 원본 탭 이름에 [폐기] 접두어를 붙여
+//      파싱 대상에서 빼는 운영 절차용. 대괄호 없이 '폐기'만 들어가도 제외된다.
+//      정정 공고는 가지 채번(26-07 → 26-07-1호)으로 새 탭에 내므로 이 패턴에 걸리지 않는다.
+//      → 운영 절차는 CLAUDE.md 7장 "공고 정정 절차" 참조
+var SA_SKIP_TAB_RE = /양식|서식|템플릿|템플렛|샘플|예시|견본|작성중|작업중|백업|폐기|template|sample|form|draft|copy|사본/i;
 
 // 직책 서열 — '인사 발령'처럼 유형이 불명확한 행의 승격/변경 판별용
 var SA_POS_RANK = {
