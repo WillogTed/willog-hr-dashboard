@@ -204,6 +204,43 @@ td.yel{color:var(--yellow);}
 /* 위계 매핑에 없는 조직 경고 배지 — 조용히 누락되지 않게 눈에 띄게 표시 */
 .org-orphan{display:inline-block;background:#fef3c7;color:#b45309;font-size:9.5px;font-weight:700;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle;}
 
+/* ── 위계 노드 리더 칩 (v3.10) ──
+   시트 소속은 그대로 두고 헤더에만 '이 조직의 리더'를 표시한다.
+   ★ 인원 집계에는 절대 들어가지 않는다 (카드 복제·이동 없음). */
+.onode-lead{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.72);border:1px solid rgba(0,0,0,.10);
+  color:inherit;font-size:10.5px;font-weight:700;border-radius:20px;padding:1px 8px 1px 6px;margin-left:8px;vertical-align:middle;cursor:pointer;}
+.onode-lead:hover{background:#fff;}
+.onode-lead .lead-pos{font-weight:600;opacity:.62;font-size:9.5px;}
+
+/* ── 조직 위계 미니맵 (v3.10) ── */
+.omap-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--sh);margin-bottom:14px;overflow:hidden;}
+.omap-hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;cursor:pointer;user-select:none;border-bottom:1px solid var(--border);}
+.omap-hdr .cttl{font-size:13px;font-weight:700;}
+.omap-sub{font-size:11px;color:var(--text3);font-weight:400;}
+.omap-body{padding:14px 18px 16px;overflow-x:auto;}
+.omap ul{list-style:none;margin:0;padding:0 0 0 22px;position:relative;}
+.omap > ul{padding-left:0;}
+/* 형제들을 잇는 세로선 — 첫 노드 중앙에서 마지막 노드 중앙까지 */
+.omap ul::before{content:'';position:absolute;left:0;top:14px;bottom:14px;border-left:1px solid #cbd5e1;}
+.omap > ul::before{display:none;}
+.omap li{position:relative;padding:3px 0;}
+/* 부모 세로선 → 노드로 가는 가로선 */
+.omap ul > li::before{content:'';position:absolute;left:-22px;top:15px;width:22px;border-top:1px solid #cbd5e1;}
+.omap > ul > li::before{display:none;}
+.omap-node{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:7px;
+  padding:4px 10px;font-size:11.5px;font-weight:600;color:var(--text);background:var(--card);cursor:pointer;
+  transition:box-shadow .12s,border-color .12s,transform .12s;white-space:nowrap;}
+.omap-node:hover{border-color:var(--accent);box-shadow:0 2px 8px rgba(37,99,235,.16);transform:translateY(-1px);}
+.omap-node .omap-n{font-size:11px;font-weight:800;color:var(--accent);}
+.omap-node .omap-own{font-size:10px;font-weight:500;color:var(--text3);}
+.omap-node .omap-lead{font-size:10px;font-weight:600;color:var(--text3);}
+.omap-node.grp{border-style:dashed;background:var(--gray-bg);}
+.omap-node.warn{border-color:#fbbf24;background:#fffbeb;}
+/* 미니맵 클릭 → 해당 박스로 스크롤 후 잠깐 강조 */
+@keyframes orgFlash{0%,100%{box-shadow:0 0 0 0 rgba(37,99,235,0);}
+  18%{box-shadow:0 0 0 4px rgba(37,99,235,.28);}70%{box-shadow:0 0 0 4px rgba(37,99,235,.20);}}
+.osec.flash{animation:orgFlash 1.5s ease-out;border-color:var(--accent)!important;}
+
 /* ORG CARD */
 .ocard{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 11px;min-width:110px;transition:box-shadow .15s;}
 .ocard:hover{box-shadow:var(--sh-md);}
@@ -399,7 +436,35 @@ body.print-org{background:#fff!important;}
 /* 인쇄 레이아웃: 2단 배치, 지면 폭 고정, 가독성 우선 (여러 페이지 허용) */
 body.print-org #org-tree{column-count:2;column-gap:14px;width:1062px;}
 body.print-org #print-hd{width:1062px;}
-body.print-org .osec{break-inside:avoid;page-break-inside:avoid;display:inline-block;width:100%;vertical-align:top;margin-bottom:10px;}
+/* ★ 2026.08.05 페이지 넘김 겹침 수정 ─────────────────────────────
+   증상: 페이지 경계에서 앞 박스의 카드가 다음 페이지 헤더 위에 겹쳐 찍힘
+         (AM3 팀 카드 ↔ Experience 부서 헤더).
+   원인 2개가 겹쳤다.
+     ① .osec 의 기본 `overflow:hidden` (border-radius 클리핑용)
+        → CSS 다단(column-count)에서 **분할 불가 블록**이 된다.
+     ② `display:inline-block`
+        → 다단·페이지 분할 대상으로서 브라우저가 조각내지 못한다.
+   ①+② 이면서 박스가 한 단 높이를 넘으면 잘리지도, 넘어가지도 못하고
+   **다음 페이지 내용 위에 그려진다.**
+   방아쇠: 부서 컬럼 오탐 수정으로 부서 레벨(AM 부서)이 복구되면서
+          '사업 본부' 박스 높이가 한 단을 넘어섰다.
+   해결: 박스는 쪼개질 수 있게 허용하고(겹치는 것보다 낫다),
+        대신 **팀·부서 그룹 단위로는 쪼개지지 않게** 막는다.
+        헤더만 남고 내용이 다음 단으로 넘어가는 것도 break-after로 방지. */
+body.print-org .osec{
+  display:block; width:auto; margin-bottom:10px;
+  overflow:visible;        /* ① 해제 — 다단에서 분할 가능하게 */
+  break-inside:auto; page-break-inside:auto;
+}
+body.print-org .obuhdr{break-after:avoid;page-break-after:avoid;}
+body.print-org .budget-bar-wrap,
+body.print-org .mo-cost-line{break-before:avoid;page-break-before:avoid;}
+/* 사람 카드 묶음은 절대 쪼개지지 않게 — 여기가 겹침의 실제 피해 지점이었다 */
+body.print-org .odgrp,
+body.print-org .otgrp,
+body.print-org .ocards,
+body.print-org .ocard{break-inside:avoid;page-break-inside:avoid;}
+body.print-org .odttl{break-after:avoid;page-break-after:avoid;}
 body.print-org .obuhdr{padding:8px 12px;font-size:12.5px;}
 body.print-org .obuhdr .bust{font-size:10.5px;}
 body.print-org .obubody{padding:9px 12px;}
@@ -513,6 +578,19 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
 
     <!-- ══ 조직도 탭 ══ -->
     <div class="panel active" id="panel-org">
+
+      <!-- 🗺 조직 위계 미니맵 v3.10 (인원수만 담은 컴팩트 트리 · 클릭 시 해당 박스로 이동) -->
+      <div class="omap-wrap org-noprint">
+        <div class="omap-hdr" onclick="toggleCard('omap')">
+          <div class="cttl"><span id="omap-arrow" style="display:inline-block;width:13px;">▾</span>🗺 조직 위계
+            <span class="omap-sub" id="omap-sub"></span>
+          </div>
+          <span class="omap-sub">노드를 클릭하면 아래 해당 조직으로 이동</span>
+        </div>
+        <div id="omap-body">
+          <div class="omap-body"><div class="omap" id="org-map"></div></div>
+        </div>
+      </div>
 
       <!-- 🏢 전사 요약 스트립 v3.8 (본부별 표시값의 단순 합산) -->
       <div class="osum-wrap org-noprint">
@@ -1011,7 +1089,13 @@ function applyMasks() {
 // ※ 조직 개편으로 이름이 바뀌면 여기 키워드만 수정하면 됨.
 const PRINT_MERGE_RULES = [
   { match:['미국','일본','싱가포르','해외'], bu:'해외법인 (미국 · 일본 · 싱가포르)' },
-  { match:['대외협력','연구기획'],            bu:'연구기획 · 대외협력' },
+  // ★ 2026.08.05 — '연구기획 · 대외협력' 병합 규칙 삭제.
+  //   연구기획 팀(1명)은 [조직도] 상 소속이 'BOOST 본부'다. 이 규칙이 그를
+  //   BOOST에서 빼내 별도 박스로 묶는 바람에 **PDF의 BOOST가 5명**으로 찍혀
+  //   화면(6명)과 어긋났다. 인원수가 화면과 다른 게 1인 박스보다 나쁘다.
+  //   → 연구기획 팀은 BOOST 본부 안에 남고, 대외협력 부서는 자기 이름 그대로
+  //     1명 박스로 나온다 (BOOST의 채용 팀도 1명 소제목이라 표기상 일관).
+  //     이름을 안 바꾸므로 aiCostFor('대외협력 부서')도 직접 매칭된다.
 ];
 function mergeForPrint(e){
   const hay=[e.본부,e.본부부서,e.팀].map(x=>String(x||'')).join('|');
@@ -1178,6 +1262,7 @@ function renderAll() {
   const activeN = S.emps.filter(e=>empSt(e)!=='퇴직').length;
   document.getElementById('tab-hc').textContent = activeN;
 
+  renderOrgMap();
   renderOrgSummary();
   renderOrgStats();
   renderOrg();
@@ -1342,46 +1427,151 @@ function renderOrg() {
   }
 
   // ── 위계 렌더 (ORG_PARENT 기준 중첩) ────────────────
-  const present = Object.keys(buMap);
+  const t = orgBuildTree(buMap);
+  if (t.strays.length) {
+    // 조용히 누락시키지 않고 최상위에 ⚠ 배지와 함께 노출한다.
+    // 시트에서 조직명을 바꿨는데 ORG_PARENT를 안 고쳤을 때 여기에 걸린다.
+    console.warn('[조직도] 위계 매핑(ORG_PARENT)에 없는 조직 — 최상위에 표시:', t.strays);
+  }
 
+  const boxOf = (node, depth) => {
+    const kids     = t.childrenOf(node);
+    const kidsHtml = kids.length
+      ? `<div class="osec-kids">${kids.map(k => boxOf(k, depth+1)).join('')}</div>`
+      : '';
+    return orgBuBoxHtml(node, buMap[node]||[], buMap, kidsHtml, {
+      subTotal: kids.length ? t.rollup(node) : 0,
+      isOrphan: t.strays.includes(node),
+      isRoot  : node === ORG_ROOT,
+    });
+  };
+  cont.innerHTML = t.roots.map(bu => boxOf(bu, 0)).join('');
+}
+
+// ═══════════════════════════════════════════════════
+// 위계 트리 조립 — renderOrg() · renderOrgMap() 공용 (v3.10)
+// ──────────────────────────────────────────────────
+// ★ 조직도 박스와 미니맵이 **같은 함수로 트리를 만든다.**
+//   따로 계산하면 둘의 인원수가 어긋날 수 있다 (6-A에서 전사 요약이
+//   renderOrg와 같은 empSal()·aiCostFor()를 재사용한 것과 같은 원칙).
+// ═══════════════════════════════════════════════════
+function orgBuildTree(buMap) {
+  const present = Object.keys(buMap);
   // 렌더 대상 노드 = 인원이 있는 본부 + 그 조상 노드 (COO 같은 순수 그룹 노드 포함)
   const nodes = new Set(present);
   present.forEach(bu => {
     let p = ORG_PARENT[bu], guard = 0;
     while (p && guard++ < 20) { nodes.add(p); p = ORG_PARENT[p]; }  // guard = 순환 참조 방지
   });
-
   // 자식 목록 — ORG_PARENT 나열 순서가 그대로 표시 순서가 된다
   const childrenOf = par => Object.keys(ORG_PARENT).filter(k => ORG_PARENT[k]===par && nodes.has(k));
-  // 산하 인원 = 자기 소속 + 모든 하위 조직 (인원만 합산 — 비용은 합산하지 않는다)
+  // 산하 인원 = **자기 직속 포함** 누적 총계 (인원만 합산 — 비용은 합산하지 않는다)
   const rollup = node => (buMap[node]||[]).length
                        + childrenOf(node).reduce((s,c) => s + rollup(c), 0);
-
-  const boxOf = (node, depth) => {
-    const kids     = childrenOf(node);
-    const kidsHtml = kids.length
-      ? `<div class="osec-kids">${kids.map(k => boxOf(k, depth+1)).join('')}</div>`
-      : '';
-    return orgBuBoxHtml(node, buMap[node]||[], buMap, kidsHtml, {
-      subTotal: kids.length ? rollup(node) : 0,
-      isOrphan: node !== ORG_ROOT && !(node in ORG_PARENT),
-    });
-  };
-
-  // 최상위 = ORG_ROOT + (매핑에 없거나 부모가 렌더 대상에 없는 조직)
-  const roots = [];
-  if (nodes.has(ORG_ROOT)) roots.push(ORG_ROOT);
+  // 매핑에 없거나 부모가 렌더 대상에 없는 조직 → 최상위로 올린다
   const strays = present.filter(bu => {
     if (bu === ORG_ROOT) return false;
     const p = ORG_PARENT[bu];
     return !p || !nodes.has(p);
   }).sort((a,b) => buMap[b].length - buMap[a].length);
-  if (strays.length) {
-    // 조용히 누락시키지 않고 최상위에 ⚠ 배지와 함께 노출한다.
-    // 시트에서 조직명을 바꿨는데 ORG_PARENT를 안 고쳤을 때 여기에 걸린다.
-    console.warn('[조직도] 위계 매핑(ORG_PARENT)에 없는 조직 — 최상위에 표시:', strays);
+  const roots = (nodes.has(ORG_ROOT) ? [ORG_ROOT] : []).concat(strays);
+  return { buMap, present, nodes, childrenOf, rollup, strays, roots };
+}
+
+// ═══════════════════════════════════════════════════
+// 위계 노드의 리더 (v3.10)
+// ──────────────────────────────────────────────────
+// ★ 시트를 고치지 않고 렌더링에서만 처리한다.
+//   규칙: **직책이 노드 이름과 같은 재직자** → 그 노드의 리더
+//         (노드 'COO' ← 직책 'COO' 인 Felix. 공백·대소문자 무시)
+//   앞으로 CTO·CFO 같은 노드를 만들어도 매핑 추가 없이 자동으로 붙는다.
+//
+// ★★ 인원 집계에는 절대 들어가지 않는다 ★★
+//   리더의 시트 소속(Felix = Closer 본부)은 그대로 두고 헤더에 칩만 얹는다.
+//   카드를 옮기면 Closer 본부 인원·인건비가 시트와 달라지고, 양쪽에 복제하면
+//   79명이 80명으로 세어진다. 그래서 '표시 전용'이다.
+//   → 그룹 노드(직속 인원 0명)에만 붙인다. CEO처럼 본인이 이미 카드로
+//     들어있는 박스에는 붙이지 않는다 (중복 표기 방지).
+// ═══════════════════════════════════════════════════
+function orgNodeLead(node) {
+  const norm = v => String(v||'').replace(/\s+/g,'').toUpperCase();
+  const n = norm(node);
+  if (!n) return null;
+  return S.emps.find(e => empSt(e) !== '퇴직' && norm(empPos(e)) === n) || null;
+}
+
+// ═══════════════════════════════════════════════════
+// 🗺 조직 위계 미니맵 v3.10
+// ──────────────────────────────────────────────────
+// 중첩 박스만으로는 위계가 눈에 안 들어온다 (박스 안 정보량이 많아 들여쓰기
+// 단서가 묻힌다). 인원수만 담은 컴팩트 트리를 탭 최상단에 따로 둔다.
+//  · 트리 조립은 renderOrg()와 **같은 orgBuildTree()** 를 쓴다 → 인원수 불일치 불가
+//  · ★ 조직도 필터(buF/stF)와 무관하게 항상 전사 기준
+//    (전사 요약 스트립·org-stats KPI와 같은 규칙)
+//  · 노드 클릭 → 해당 박스로 스크롤 + 접혀 있으면 상위까지 펼침
+// ═══════════════════════════════════════════════════
+function renderOrgMap() {
+  const box = document.getElementById('org-map');
+  if (!box) return;
+  const sub = document.getElementById('omap-sub');
+  const active = S.emps.filter(e => empSt(e) !== '퇴직');
+  if (!active.length) { box.innerHTML = '<div class="empty">조직 데이터 없음</div>'; if(sub) sub.textContent=''; return; }
+
+  const buMap = {};
+  active.forEach(e => { const bu = empBu(e); (buMap[bu] = buMap[bu] || []).push(e); });
+  const t = orgBuildTree(buMap);
+
+  const esc = v => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const nodeHtml = name => {
+    const own   = (buMap[name]||[]).length;
+    const kids  = t.childrenOf(name);
+    const total = t.rollup(name);
+    const isGrp = own === 0;
+    const stray = t.strays.includes(name);
+    const lead  = isGrp ? orgNodeLead(name) : null;
+    // 하위가 있으면 총계를 크게, 직속은 괄호로 (박스 헤더와 같은 기준)
+    const cnt = kids.length
+      ? `<span class="omap-n">${total}명</span>` + (own ? `<span class="omap-own">직속 ${own}</span>` : '')
+      : `<span class="omap-n">${own}명</span>`;
+    return `<span class="omap-node${isGrp?' grp':''}${stray?' warn':''}" onclick="scrollToOrg('${esc(name).replace(/'/g,"\\'")}')"`
+      + ` title="${esc(name)} — 클릭 시 아래 해당 조직으로 이동">`
+      + `${stray?'⚠ ':''}${esc(name)}${cnt}`
+      + (lead ? `<span class="omap-lead">👤 ${esc(empName(lead))}</span>` : '')
+      + `</span>`;
+  };
+  const ulOf = names => names.length
+    ? `<ul>${names.map(n => `<li>${nodeHtml(n)}${ulOf(t.childrenOf(n))}</li>`).join('')}</ul>`
+    : '';
+
+  box.innerHTML = ulOf(t.roots);
+  if (sub) {
+    const depth = (n, d=0) => Math.max(d, ...t.childrenOf(n).map(c => depth(c, d+1)), d);
+    sub.textContent = `재직 ${active.length}명 · 조직 ${t.present.length}개 · ${Math.max(...t.roots.map(r=>depth(r)))+1}단`
+      + (t.strays.length ? ` · ⚠ 위계 미지정 ${t.strays.length}개` : '');
   }
-  cont.innerHTML = roots.concat(strays).map(bu => boxOf(bu, 0)).join('');
+}
+
+// 미니맵 노드 클릭 → 조직도 박스로 이동. 접혀 있으면 상위부터 펼친다.
+function scrollToOrg(name) {
+  const secs = document.querySelectorAll('#org-tree .osec');
+  let target = null;
+  for (const s of secs) { if (s.getAttribute('data-bu') === name) { target = s; break; } }
+  if (!target) return;
+  // 접힌 상위 조직을 모두 펼쳐야 대상이 화면에 나타난다
+  let p = target.parentElement;
+  while (p && p.id !== 'org-tree') {
+    if (p.classList && p.classList.contains('obubody') && p.style.display === 'none') {
+      const sec = p.closest('.osec');
+      const hdr = sec && sec.querySelector(':scope > .obuhdr');
+      if (hdr) toggleBU(hdr);
+    }
+    p = p.parentElement;
+  }
+  target.scrollIntoView({ behavior:'smooth', block:'start' });
+  target.classList.remove('flash');
+  void target.offsetWidth;          // 리플로우 강제 → 연속 클릭에도 애니메이션 재생
+  target.classList.add('flash');
+  setTimeout(() => target.classList.remove('flash'), 1600);
 }
 
 // 본부 필터가 걸렸을 때 상위 경로를 한 줄로 표시 (CEO › COO › 사업 본부)
@@ -1422,15 +1612,23 @@ function orgBuBoxHtml(bu, members, buMap, kidsHtml, meta) {
     }
 
     // ── 헤더 라인: 인원 + 예산 대비 %만 간결하게 (금액 상세는 예산 바에 1회만 표시) ──
-    //    하위 조직이 있으면 '직속 N명 · 산하 M명'으로 나눠 표기한다.
-    //    (산하 M명 = 자기 직속 + 모든 하위 조직 인원. 비용은 합산하지 않는다 —
-    //     6-A의 '본부별 표시값 단순 합산 = 전사 값' 관계를 깨지 않기 위해)
+    //  ★ 인원 표기 기준 (2026.08.05 명확화) ★
+    //    · 직속 N명 = [조직도] '본부/부서' 값이 이 조직인 사람 (시트 그대로)
+    //    · 산하 M명 = **자기 직속 + 모든 하위 조직** 누적 (= 조직 전체 인원)
+    //      → 자기 직속을 포함한다. 그래서 최상위 CEO의 '산하'는 전사 인원과
+    //        정확히 같아지고(CEO 본인 2명 포함), 전사 요약 스트립의
+    //        '총 재직 인원'과 대조 가능한 값이 된다. 그 의미를 라벨에 드러내기
+    //        위해 루트에는 '(전사)'를 붙인다.
+    //    · 하위가 없는 조직은 구분이 무의미하므로 'N명' 하나만 쓴다.
+    //    · 비용은 합산하지 않는다 — 6-A의 '본부별 표시값 단순 합산 = 전사 값'
+    //      관계를 깨지 않기 위해 인원만 누적한다.
+    const subLbl = '산하 <strong>'+meta.subTotal+'명</strong>' + (meta.isRoot ? ' <span style="font-weight:600;opacity:.7;">(전사)</span>' : '');
     const headN = meta.subTotal
-      ? (isGroup ? '<strong>'+meta.subTotal+'명</strong>'
-                 : '직속 <strong>'+members.length+'명</strong> &nbsp;·&nbsp; 산하 <strong>'+meta.subTotal+'명</strong>')
+      ? (isGroup ? subLbl
+                 : '직속 <strong>'+members.length+'명</strong> &nbsp;·&nbsp; ' + subLbl)
       : '<strong>'+members.length+'명</strong>';
     const bustParts = [
-      '<span class="bpart">'+headN+'</span>',
+      '<span class="bpart" title="직속 = 시트 소속이 이 조직인 인원 / 산하 = 직속 + 모든 하위 조직 인원(자기 직속 포함)">'+headN+'</span>',
       budgetRatio ? '<span class="bpart sal-info">인건비 예산 대비 <strong style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</strong></span>' : '',
     ].filter(Boolean).join(' &nbsp;·&nbsp; ');
 
@@ -1540,9 +1738,20 @@ function orgBuBoxHtml(bu, members, buMap, kidsHtml, meta) {
     const orphanBadge = meta.isOrphan
       ? `<span class="org-orphan" title="index.html의 ORG_PARENT 매핑에 이 조직명이 없습니다. 조직개편 후 매핑을 갱신하세요.">⚠ 위계 미지정</span>`
       : '';
-    return `<div class="osec${isGroup?' grp':''}" style="border-color:${clr.bd};">
+    // 그룹 노드 리더 칩 — 표시 전용 (orgNodeLead 주석 참조). 집계 무영향.
+    let leadChip = '';
+    if (isGroup) {
+      const ld = orgNodeLead(bu);
+      if (ld) {
+        const sb = String(ld.사번||'').replace(/'/g,'');
+        leadChip = `<span class="onode-lead" title="${empName(ld)} · ${empPos(ld)} — 시트 소속은 ${empBu(ld)} (표시 전용, 인원 집계 무영향)"`
+          + (sb ? ` onclick="event.stopPropagation();openProfile('${sb}')"` : '')
+          + `>👤 ${empName(ld)}<span class="lead-pos">${empPos(ld)}</span></span>`;
+      }
+    }
+    return `<div class="osec${isGroup?' grp':''}" data-bu="${String(bu).replace(/"/g,'&quot;')}" style="border-color:${clr.bd};">
       <div class="obuhdr" style="background:${clr.bg};color:${clr.tx};" onclick="toggleBU(this)">
-        <span class="obuname"><span class="obu-arrow" style="display:inline-block;width:11px;">▾</span>${bu}${orphanBadge}</span>
+        <span class="obuname"><span class="obu-arrow" style="display:inline-block;width:11px;">▾</span>${bu}${leadChip}${orphanBadge}</span>
         <span class="bust">${bustParts}</span>
       </div>
       ${budgetBarHtml}
