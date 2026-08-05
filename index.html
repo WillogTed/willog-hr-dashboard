@@ -189,6 +189,21 @@ td.yel{color:var(--yellow);}
 .otttl{font-size:10px;font-weight:600;color:var(--accent);margin-bottom:5px;padding-left:2px;}
 .ocards{display:flex;flex-wrap:wrap;gap:7px;}
 
+/* ── 조직 위계 중첩 (v3.9) ──
+   하위 조직 박스를 담는 래퍼. 좌측 세로선 + 들여쓰기로 위계를 표현한다.
+   깊이가 깊어져도 가로 폭을 많이 먹지 않도록 들여쓰기는 14px로 고정. */
+.osec-kids{padding-left:14px;margin:10px 0 2px;border-left:2px dashed #cbd5e1;}
+.osec-kids > .osec{margin-bottom:8px;}
+.osec-kids > .osec:last-child{margin-bottom:0;}
+/* 순수 그룹 노드(COO 등 — 시트에 실제 소속 인원이 없는 위계 노드) */
+.osec.grp > .obuhdr{font-size:12.5px;}
+.osec.grp > .obubody{padding:10px 12px 12px;}
+/* 위계 상 상위 경로 표시 (본부 필터 적용 시) */
+.org-crumb{font-size:11px;color:var(--text3);margin-bottom:10px;padding-left:2px;}
+.org-crumb b{color:var(--text2);font-weight:700;}
+/* 위계 매핑에 없는 조직 경고 배지 — 조용히 누락되지 않게 눈에 띄게 표시 */
+.org-orphan{display:inline-block;background:#fef3c7;color:#b45309;font-size:9.5px;font-weight:700;border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:middle;}
+
 /* ORG CARD */
 .ocard{background:var(--white);border:1px solid var(--border);border-radius:8px;padding:8px 11px;min-width:110px;transition:box-shadow .15s;}
 .ocard:hover{box-shadow:var(--sh-md);}
@@ -848,6 +863,42 @@ const BU_CLR = {
 };
 
 // ═══════════════════════════════════════════════════
+// 조직 위계 정의 v3.9 (Flex 조직도 기준)
+// ──────────────────────────────────────────────────
+// ★ [조직도] 시트에는 상위 조직 관계가 없다.
+//   시트는 '본부/부서 · 부서 · 팀' 3단 평면 구조이고, "사업 본부의 상위가 COO"
+//   라는 관계는 시트 어디에도 들어 있지 않다. → 이 매핑이 위계의 유일한 출처다.
+//
+// ★ 조직개편 시 여기만 고치면 된다.
+//   · 키   = [조직도] '본부/부서' 컬럼 값과 **정확히 일치**해야 한다 (공백 포함)
+//   · 값   = 상위 조직 이름
+//   · 순서 = 나열 순서가 곧 화면 표시 순서 (Flex 조직도 순서에 맞춰 둠)
+//
+// ★ 매핑에 없는 조직은 사라지지 않는다 — 최상위에 ⚠ 배지와 함께 렌더되고
+//   콘솔에 경고가 남는다. 시트에서 조직명을 바꿨는데 여기를 안 고쳤을 때
+//   해당 인원이 조용히 화면에서 빠지는 것을 막기 위한 안전장치다.
+const ORG_ROOT   = 'CEO';
+const ORG_PARENT = {
+  'CEO 직속'              : 'CEO',
+  'BOOST 본부'            : 'CEO',
+  'COO'                   : 'CEO',
+  '감사'                  : 'CEO',
+  // ── COO 산하 ──
+  'COO/Closer 본부'       : 'COO',
+  '사업 본부'             : 'COO',
+  'Streamline Works 부서' : 'COO',
+  'Experience 부서'       : 'COO',
+  'Starlight 부서'        : 'COO',
+  'Closer 본부'           : 'COO',
+  '대외협력 부서'         : 'COO',
+  '미국 법인'             : 'COO',
+  '일본 법인'             : 'COO',
+  '싱가포르 법인'         : 'COO',
+};
+// 시트에 소속 인원이 없는 순수 위계 노드 (하위 조직을 묶는 역할만 한다)
+const ORG_GROUP_NODES = { 'COO': true };
+
+// ═══════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════
 let S = { emps:[], months:null, prevMonths:null, report:null, insights:null, deptBudgets:{}, deptAiCost:{}, deptMoCosts:{}, leavers:[], hrEvents:[], probation:[], loadedAt:null };
@@ -1263,7 +1314,8 @@ function renderOrg() {
   if (buF) emps = emps.filter(e=>empBu(e)===buF);
 
   // PDF 출력 모드: 1인 조직 보호를 위한 그룹 병합 (PRINT_MERGE_RULES)
-  if (typeof ORG_PRINT_MODE!=='undefined' && ORG_PRINT_MODE) emps = emps.map(mergeForPrint);
+  const printMode = (typeof ORG_PRINT_MODE!=='undefined' && ORG_PRINT_MODE);
+  if (printMode) emps = emps.map(mergeForPrint);
 
   // 본부 그룹핑
   const buMap = {};
@@ -1273,15 +1325,86 @@ function renderOrg() {
     buMap[bu].push(e);
   });
 
-  // 정렬: CEO 최상단, CEO 직속 두 번째, 나머지 인원순
-  const sortBus = Object.keys(buMap).sort((a,b) => {
-    if (a==='CEO') return -1; if (b==='CEO') return 1;
-    if (a==='CEO 직속') return -1; if (b==='CEO 직속') return 1;
-    return buMap[b].length - buMap[a].length;
+  // ── 평면 렌더 (위계 미적용) ─────────────────────────
+  //  ① PDF 출력 모드: PRINT_MERGE_RULES가 본부를 재구성하므로
+  //     ('해외법인 (미국 · 일본 · 싱가포르)' 등) 위계 매핑 키와 맞지 않는다.
+  //     → 검증된 기존 인쇄 레이아웃(inline-block 다단)을 그대로 유지한다.
+  //  ② 본부 필터 적용: 박스가 1개뿐이라 중첩할 게 없다. 대신 위계 경로를 한 줄로 표시.
+  if (printMode || buF) {
+    const sortBus = Object.keys(buMap).sort((a,b) => {
+      if (a==='CEO') return -1; if (b==='CEO') return 1;
+      if (a==='CEO 직속') return -1; if (b==='CEO 직속') return 1;
+      return buMap[b].length - buMap[a].length;
+    });
+    cont.innerHTML = (buF && !printMode ? orgCrumbHtml(buF) : '')
+      + sortBus.map(bu => orgBuBoxHtml(bu, buMap[bu], buMap, '', {})).join('');
+    return;
+  }
+
+  // ── 위계 렌더 (ORG_PARENT 기준 중첩) ────────────────
+  const present = Object.keys(buMap);
+
+  // 렌더 대상 노드 = 인원이 있는 본부 + 그 조상 노드 (COO 같은 순수 그룹 노드 포함)
+  const nodes = new Set(present);
+  present.forEach(bu => {
+    let p = ORG_PARENT[bu], guard = 0;
+    while (p && guard++ < 20) { nodes.add(p); p = ORG_PARENT[p]; }  // guard = 순환 참조 방지
   });
 
-  cont.innerHTML = sortBus.map(bu => {
-    const members= buMap[bu];
+  // 자식 목록 — ORG_PARENT 나열 순서가 그대로 표시 순서가 된다
+  const childrenOf = par => Object.keys(ORG_PARENT).filter(k => ORG_PARENT[k]===par && nodes.has(k));
+  // 산하 인원 = 자기 소속 + 모든 하위 조직 (인원만 합산 — 비용은 합산하지 않는다)
+  const rollup = node => (buMap[node]||[]).length
+                       + childrenOf(node).reduce((s,c) => s + rollup(c), 0);
+
+  const boxOf = (node, depth) => {
+    const kids     = childrenOf(node);
+    const kidsHtml = kids.length
+      ? `<div class="osec-kids">${kids.map(k => boxOf(k, depth+1)).join('')}</div>`
+      : '';
+    return orgBuBoxHtml(node, buMap[node]||[], buMap, kidsHtml, {
+      subTotal: kids.length ? rollup(node) : 0,
+      isOrphan: node !== ORG_ROOT && !(node in ORG_PARENT),
+    });
+  };
+
+  // 최상위 = ORG_ROOT + (매핑에 없거나 부모가 렌더 대상에 없는 조직)
+  const roots = [];
+  if (nodes.has(ORG_ROOT)) roots.push(ORG_ROOT);
+  const strays = present.filter(bu => {
+    if (bu === ORG_ROOT) return false;
+    const p = ORG_PARENT[bu];
+    return !p || !nodes.has(p);
+  }).sort((a,b) => buMap[b].length - buMap[a].length);
+  if (strays.length) {
+    // 조용히 누락시키지 않고 최상위에 ⚠ 배지와 함께 노출한다.
+    // 시트에서 조직명을 바꿨는데 ORG_PARENT를 안 고쳤을 때 여기에 걸린다.
+    console.warn('[조직도] 위계 매핑(ORG_PARENT)에 없는 조직 — 최상위에 표시:', strays);
+  }
+  cont.innerHTML = roots.concat(strays).map(bu => boxOf(bu, 0)).join('');
+}
+
+// 본부 필터가 걸렸을 때 상위 경로를 한 줄로 표시 (CEO › COO › 사업 본부)
+function orgCrumbHtml(bu) {
+  const path = [];
+  let p = ORG_PARENT[bu], guard = 0;
+  while (p && guard++ < 20) { path.unshift(p); p = ORG_PARENT[p]; }
+  if (!path.length) return '';
+  return `<div class="org-crumb">위계 &nbsp;${path.join(' › ')} › <b>${bu}</b></div>`;
+}
+
+// ═══════════════════════════════════════════════════
+// 본부/부서 박스 1개 HTML (위계 렌더·평면 렌더 공용)
+//   bu       : 조직명 (= [조직도] '본부/부서' 값 또는 ORG_GROUP_NODES의 그룹 노드)
+//   members  : 그 조직 직속 인원 (그룹 노드는 빈 배열)
+//   buMap    : 전체 본부 그룹 (PDF 병합 시 AI 비용 이중계산 방지 판정에 사용)
+//   kidsHtml : 하위 조직 박스 HTML (없으면 '')
+//   meta     : {subTotal: 산하 인원 합계(하위 있을 때만), isOrphan: 위계 매핑 누락}
+// ═══════════════════════════════════════════════════
+function orgBuBoxHtml(bu, members, buMap, kidsHtml, meta) {
+    members = members || [];
+    meta    = meta || {};
+    const isGroup = members.length === 0;   // 순수 위계 노드 (COO 등)
     const clrKey = Object.keys(BU_CLR).find(k=>bu.includes(k))||'default';
     const clr    = BU_CLR[clrKey]||BU_CLR.default;
     const totMoSal  = members.reduce((s,e)=>s+empSal(e),0);
@@ -1299,8 +1422,15 @@ function renderOrg() {
     }
 
     // ── 헤더 라인: 인원 + 예산 대비 %만 간결하게 (금액 상세는 예산 바에 1회만 표시) ──
+    //    하위 조직이 있으면 '직속 N명 · 산하 M명'으로 나눠 표기한다.
+    //    (산하 M명 = 자기 직속 + 모든 하위 조직 인원. 비용은 합산하지 않는다 —
+    //     6-A의 '본부별 표시값 단순 합산 = 전사 값' 관계를 깨지 않기 위해)
+    const headN = meta.subTotal
+      ? (isGroup ? '<strong>'+meta.subTotal+'명</strong>'
+                 : '직속 <strong>'+members.length+'명</strong> &nbsp;·&nbsp; 산하 <strong>'+meta.subTotal+'명</strong>')
+      : '<strong>'+members.length+'명</strong>';
     const bustParts = [
-      '<span class="bpart"><strong>'+members.length+'명</strong></span>',
+      '<span class="bpart">'+headN+'</span>',
       budgetRatio ? '<span class="bpart sal-info">인건비 예산 대비 <strong style="color:'+(parseInt(budgetRatio)>100?'#ef4444':'#22c55e')+';">'+budgetRatio+'%</strong></span>' : '',
     ].filter(Boolean).join(' &nbsp;·&nbsp; ');
 
@@ -1407,16 +1537,18 @@ function renderOrg() {
       </div>`;
     }).join('');
 
-    return `<div class="osec" style="border-color:${clr.bd};">
+    const orphanBadge = meta.isOrphan
+      ? `<span class="org-orphan" title="index.html의 ORG_PARENT 매핑에 이 조직명이 없습니다. 조직개편 후 매핑을 갱신하세요.">⚠ 위계 미지정</span>`
+      : '';
+    return `<div class="osec${isGroup?' grp':''}" style="border-color:${clr.bd};">
       <div class="obuhdr" style="background:${clr.bg};color:${clr.tx};" onclick="toggleBU(this)">
-        <span class="obuname"><span class="obu-arrow" style="display:inline-block;width:11px;">▾</span>${bu}</span>
+        <span class="obuname"><span class="obu-arrow" style="display:inline-block;width:11px;">▾</span>${bu}${orphanBadge}</span>
         <span class="bust">${bustParts}</span>
       </div>
       ${budgetBarHtml}
       ${moLineHtml}
-      <div class="obubody">${deptsHTML}</div>
+      <div class="obubody">${deptsHTML}${kidsHtml||''}</div>
     </div>`;
-  }).join('');
 }
 
 // 직책 우선순위 (낮을수록 먼저)
@@ -1427,10 +1559,15 @@ function leaderRank(e) {
 
 function toggleBU(el) {
   const sec=el.closest('.osec');
-  const b=sec.querySelector('.obubody');
+  // ★ v3.9 위계 중첩 이후 반드시 '직계 자식'만 잡아야 한다.
+  //   querySelector('.obubody')는 자기 본문이 먼저 걸려 우연히 맞지만,
+  //   '.budget-bar-wrap'은 자기에게 예산 바가 없으면 **하위 조직의 예산 바**를
+  //   집어서 엉뚱한 박스를 접어버린다. → :scope > 로 직계 한정.
+  const b=sec.querySelector(':scope > .obubody');
+  if(!b) return;
   const isHidden=b.style.display==='none';
   b.style.display=isHidden?'block':'none';
-  const bar=sec.querySelector('.budget-bar-wrap');
+  const bar=sec.querySelector(':scope > .budget-bar-wrap');
   if(bar) bar.style.display=isHidden?'block':'none';
   const arrow=el.querySelector('.obu-arrow');
   if(arrow) arrow.textContent=isHidden?'▾':'▸';
