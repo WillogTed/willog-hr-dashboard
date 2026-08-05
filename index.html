@@ -1237,14 +1237,47 @@ function mergeForPrint(e){
 //   이전 버그: 본부별 AI 비용이 10배 과대 표시 + 본부별 '합계' 라인이
 //              인건비(만원) + AI(천원)를 섞어 더하고 있었음.
 //   ※ [설정] 입력 단위를 만원으로 바꾸려면 이 toMan() 변환을 함께 제거해야 한다.
+// ★ [설정] 키 조회 공통 정규화 (v3.13, 2026.08.05)
+//   공백 제거 + **대소문자 무시**.
+//   실제 사고: [설정] 키가 'budget_CLOSER 본부' / 'ai_CLOSER 본부' 인데
+//   [조직도] 값은 'Closer 본부' 여서, 예산 36,000만원과 AI 338천원이
+//   시트에 있는데도 화면에서 조용히 사라졌다 (예산 바·AI 라인 미표시).
+//   기존 aiCostFor 는 공백만 접고 대소문자는 접지 않았고, 예산은 정규화가
+//   아예 없는 정확 키 조회였다.
+//   ※ 현재 [설정] 키 전체에 대해 정규화 충돌(다른 키가 같은 정규형이 되는 경우)
+//     이 없음을 오프라인으로 확인했다. 조직명을 대소문자만 다르게 두는 것은
+//     애초에 피해야 한다.
+const cfgNorm = v => String(v||'').replace(/\s+/g,'').toUpperCase();
+
 function aiCostFor(name){
-  const norm=v=>String(v||'').replace(/\s+/g,'');
-  const n=norm(name);
+  const n=cfgNorm(name);
   if(!n) return 0;
   const toMan=chun=>(Number(chun)||0)/10;   // [설정] 천원/월 → 화면 공통 단위 만원/월
-  if(S.deptAiCost){for(const k in S.deptAiCost){if(norm(k)===n) return toMan(S.deptAiCost[k]);}}
-  if(S.deptBudgets){for(const k in S.deptBudgets){if(k.indexOf('ai_')===0 && norm(k.slice(3))===n) return toMan(S.deptBudgets[k]);}}
+  if(S.deptAiCost){for(const k in S.deptAiCost){if(cfgNorm(k)===n) return toMan(S.deptAiCost[k]);}}
+  if(S.deptBudgets){for(const k in S.deptBudgets){if(k.indexOf('ai_')===0 && cfgNorm(k.slice(3))===n) return toMan(S.deptBudgets[k]);}}
   return 0;
+}
+
+// 본부명으로 인건비 예산 조회 — 단위 만원/년. aiCostFor 와 같은 정규화를 쓴다.
+// (이전에는 'budget_'+bu 정확 키 조회여서 대소문자·공백 차이에 그대로 걸렸다)
+function budgetFor(name){
+  const n=cfgNorm(name);
+  if(!n || !S.deptBudgets) return 0;
+  for(const k in S.deptBudgets){
+    if(k.indexOf('budget_')===0 && cfgNorm(k.slice(7))===n) return Number(S.deptBudgets[k])||0;
+  }
+  return 0;
+}
+
+// ★ AI 비용이 인건비의 몇 % 인가 (v3.13, 항목 4)
+//   두 값 모두 '만원' 단위로 들어와야 한다 (aiCostFor 가 천원→만원 변환을
+//   이미 수행하므로 호출부는 전부 만원 — 3장 10번 규칙).
+//   ★ 인건비나 AI 비용이 0이면 null 을 돌려주고 호출부는 % 를 **표시하지 않는다.**
+//     0% 로 찍으면 'AI를 안 쓴다'는 오해가 된다 — 실제로는 [설정] 미등록이다.
+function aiPctOfSal(aiMan, salMan){
+  if(!(aiMan > 0) || !(salMan > 0)) return null;
+  const pct = aiMan / salMan * 100;
+  return (pct >= 10 ? pct.toFixed(0) : pct.toFixed(1));
 }
 
 // 본부명으로 확장 월비용 항목 조회 — [설정] '월비용_항목명_본부명' 키 (만원/월), 공백 무시 매칭
@@ -1471,8 +1504,12 @@ function renderOrgSummary() {
     // 값이 0이면 fmtMan()이 '—' 를 주므로 단위를 붙이지 않는다 ('— 만원' 방지)
     osCell('전사 인건비 합계 (월)', fmtMan(t.salMan), t.salMan ? '만원' : '',
            t.salMan > 0 ? `${fmtUk(t.salMan)}/월 · 월고정총액 기준` : '월고정총액 기준') +
+    // ★ 항목 4 (v3.13): 전사 AI % 도 **기존 sub 라인 안에** 덧붙인다 (스트립 높이 불변)
     osCell('전사 AI 비용 합계 (월)', fmtMan(t.aiMan), t.aiMan ? '만원' : '',
-           t.aiMan > 0 ? `[설정] AI 비용 등록 ${t.aiBuCount}개 본부` : '[설정] ai_ 키 미등록') +
+           t.aiMan > 0
+             ? `[설정] AI 비용 등록 ${t.aiBuCount}개 본부`
+               + (aiPctOfSal(t.aiMan, t.salMan) !== null ? ` · 인건비의 ${aiPctOfSal(t.aiMan, t.salMan)}%` : '')
+             : '[설정] ai_ 키 미등록') +
     osCell('기준일', `${d.getFullYear()}. ${pad(d.getMonth()+1)}. ${pad(d.getDate())}.`, '',
            `${pad(d.getHours())}:${pad(d.getMinutes())} 시트 조회 기준`, true);
 }
@@ -1735,8 +1772,7 @@ function orgBuBoxHtml(bu, members, buMap, kidsHtml, meta) {
     const clr    = BU_CLR[clrKey]||BU_CLR.default;
     const totMoSal  = members.reduce((s,e)=>s+empSal(e),0);
     const totAnnSal = members.reduce((s,e)=>s+empAnnSal(e),0);
-    const budgetKey = 'budget_'+bu;
-    const budgetMan = S.deptBudgets ? (S.deptBudgets[budgetKey]||0) : 0;
+    const budgetMan = budgetFor(bu);   // v3.13: 공백·대소문자 무시 매칭
     const budgetRatio = (budgetMan>0 && totAnnSal>0) ? (totAnnSal/budgetMan*100).toFixed(0) : null;
     // AI 사용 비용 (단위: 만원/월)
     // ① 본부명 정확/공백무시 매칭 → ② 병합 그룹이면 원소속 본부들의 AI 비용 자동 합산
@@ -1772,7 +1808,9 @@ function orgBuBoxHtml(bu, members, buMap, kidsHtml, meta) {
     //    인건비 = 월고정 합계 / AI = 설정 ai_키 / 기타 항목 = 설정 '월비용_항목명_본부명' 키 자동 인식
     const moItems = [];
     if (totMoSal  > 0) moItems.push({name:'인건비', man:totMoSal,  mask:true });
-    if (aiCostMan > 0) moItems.push({name:'🤖 AI',  man:aiCostMan, mask:false});
+    // ★ 항목 4 (v3.13): AI 항목에 '인건비의 X%' 를 **같은 줄 괄호 안에** 덧붙인다.
+    //   줄을 새로 추가하지 않는다 — 박스 높이가 바뀌면 인쇄 조판(6-E)을 다시 잡아야 한다.
+    if (aiCostMan > 0) moItems.push({name:'🤖 AI',  man:aiCostMan, mask:false, pctBase:totMoSal});
     const extraCosts = moCostsFor(bu);
     Object.keys(extraCosts).forEach(k => { if (extraCosts[k] > 0) moItems.push({name:k, man:extraCosts[k], mask:false}); });
 
@@ -1780,8 +1818,12 @@ function orgBuBoxHtml(bu, members, buMap, kidsHtml, meta) {
     if (moItems.length) {
       const perH   = m => members.length>0 ? Math.round(m/members.length*10).toLocaleString() : '—';
       const totMan = moItems.reduce((s,it)=>s+it.man,0);
-      const parts  = moItems.map(it =>
-        `<span class="bpart${it.mask?' sal-info':''}">${it.name} <strong>${fmtChun(it.man)}</strong> <span style="color:var(--text3);">(인당 ${perH(it.man)})</span></span>`);
+      const parts  = moItems.map(it => {
+        // 인건비 대비 % — 인건비나 해당 비용이 0이면 aiPctOfSal 이 null 을 주고 표기하지 않는다
+        const pct    = it.pctBase !== undefined ? aiPctOfSal(it.man, it.pctBase) : null;
+        const pctTxt = pct !== null ? ` · 인건비의 ${pct}%` : '';
+        return `<span class="bpart${it.mask?' sal-info':''}">${it.name} <strong>${fmtChun(it.man)}</strong> <span style="color:var(--text3);">(인당 ${perH(it.man)}${pctTxt})</span></span>`;
+      });
       const sumPart = moItems.length>1
         ? ` &nbsp;⇒&nbsp; <span class="bpart sal-info">합계 <strong>${fmtChun(totMan)}</strong> <span style="color:var(--text3);">(인당 ${perH(totMan)})</span></span>` : '';
       moLineHtml = `<div class="mo-cost-line"><span style="color:var(--text3);font-weight:600;">월 기준</span> &nbsp; ${parts.join(' &nbsp;·&nbsp; ')}${sumPart}</div>`;
@@ -1959,7 +2001,11 @@ function mkOrgCard(e) {
   const posWarn = posIsFallback(e)
     ? `<span class="opos-warn" title="직책 '${_pos}' 이(가) 직책 표(POS_EXACT)에 없어 키워드 추정으로 판정했습니다 (현재 판정: ${leaderType(e)||'리더 아님'}). 표기를 확인하거나 index.html의 POS_EXACT에 추가하세요.">⚠</span>`
     : '';
-  const info   = (_pos?_pos:'') + posWarn + (_lv?`<span class="oclvl">${_pos?' · ':''}${_lv}</span>`:'');
+  // ★ v3.12.1 — 직책과 레벨 값이 같으면 레벨을 접는다 (Ben·Daniel 'CEO · CEO' → 'CEO').
+  //   급여 순위 표(posLvLabel)와 **같은 판정 함수**를 쓴다. 레벨은 마스크 대상이라
+  //   <span class="oclvl"> 래퍼를 유지해야 하므로 마크업은 여기서 따로 만든다.
+  const _showLv = _lv && !posLvDup(e);
+  const info   = (_pos?_pos:'') + posWarn + (_showLv?`<span class="oclvl">${_pos?' · ':''}${_lv}</span>`:'');
   const sal    = empSal(e);
   const salHTML= sal?`<div class="ocsal">${Math.round(sal*10).toLocaleString()}천원/월</div>`:'';
   const lt     = leaderType(e);
@@ -2061,9 +2107,22 @@ function renderSalRank() {
 function posLvLabel(e) {
   const esc = v => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const pos = String(empPos(e)||'').trim();
-  const lv  = String(empLv(e)||'').trim();
-  const parts = (lv && lv !== pos) ? [pos, lv] : [pos];
+  const parts = posLvDup(e) ? [pos] : [pos, String(empLv(e)||'').trim()];
   return parts.filter(Boolean).map(esc).join(' · ') || '—';
+}
+
+// 직책과 레벨이 같은 값인가 = 표기 중복인가 (v3.12.1)
+// ★ 판정 규칙을 여기 한 곳에 둔다 — 급여 순위 표(posLvLabel)와 조직도 카드
+//   (mkOrgCard)가 같은 규칙을 써야 한다. 같은 데이터가 표에선 'CEO',
+//   카드에선 'CEO · CEO' 로 갈리는 것이 중복 표기보다 나쁘다.
+// ※ 조직도 카드는 posLvLabel 을 그대로 쓸 수 없다 — 카드의 레벨은
+//   'Job-Level 가리기' 마스크 대상이라 <span class="oclvl"> 로 감싸야 하고,
+//   posLvLabel 은 평문 문자열을 돌려주기 때문에 마스크가 깨진다.
+//   그래서 **판정만** 공유하고 마크업은 각자 만든다.
+function posLvDup(e) {
+  const pos = String(empPos(e)||'').trim();
+  const lv  = String(empLv(e)||'').trim();
+  return !!lv && lv === pos;
 }
 
 // ═══════════════════════════════════════════════════
