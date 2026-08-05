@@ -286,19 +286,35 @@ td.yel{color:var(--yellow);}
 
 /* ── 급여 전체 순위 표 v3.12 ── */
 .srank{font-size:11.5px;}
-.srank th{color:var(--text3);font-size:10.5px;font-weight:700;padding:8px 10px;text-align:left;white-space:nowrap;}
+.srank th{color:var(--text3);font-size:10.5px;font-weight:700;padding:8px 10px;white-space:nowrap;}
 .srank td{padding:7px 10px;color:var(--text2);vertical-align:middle;}
 .srank tbody tr:hover td{background:var(--gray-bg);}
-.srank .c-rank{width:52px;text-align:right;font-weight:700;color:var(--text3);font-variant-numeric:tabular-nums;}
-.srank .c-name{font-weight:700;color:var(--text);white-space:nowrap;}
-.srank .c-org{color:var(--text3);}
-.srank .c-pos{color:var(--text3);white-space:nowrap;}
-.srank .c-sal{width:104px;text-align:right;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap;}
-.srank .tie{font-weight:500;color:var(--text3);font-size:9.5px;margin-left:2px;}
+
+/* ★ 컬럼별 정렬 — th·td에 **같은 클래스**로 걸어 헤더와 본문이 갈릴 수 없게 한다.
+   (th 에만 text-align 을 주면 컬럼을 추가할 때마다 어긋난다)
+   숫자는 우측/가운데, 텍스트는 좌측 — 이름을 가운데 두면 이름 길이마다
+   시작점이 달라져 79행을 훑기 어렵다. */
+.srank .c-rank{text-align:center;white-space:nowrap;width:76px;}
+.srank .c-name,
+.srank .c-org,
+.srank .c-pos{text-align:left;}
+.srank .c-sal{text-align:right;white-space:nowrap;width:112px;}
+
+/* 본문 전용 시각 스타일 (td 한정 — th 는 위 .srank th 스타일을 유지) */
+.srank td.c-rank{font-weight:700;color:var(--text3);font-variant-numeric:tabular-nums;}
+.srank td.c-name{font-weight:700;color:var(--text);white-space:nowrap;}
+.srank td.c-org,
+.srank td.c-pos{color:var(--text3);}
+.srank td.c-pos{white-space:nowrap;}
+.srank td.c-sal{font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;}
+/* 동순위 '공동' — 작은 글씨지만 순위 숫자와 **한 줄**에 유지한다.
+   줄바꿈되면 그 행만 높이가 1.5배로 튀어 행 높이가 불균일해진다.
+   (셀의 white-space:nowrap + 넉넉한 컬럼 폭이 이걸 보장한다) */
+.srank .tie{font-weight:500;color:var(--text3);font-size:9.5px;margin-left:3px;}
 /* 상위 3위 살짝 강조 */
-.srank tr.top1 .c-rank,.srank tr.top2 .c-rank,.srank tr.top3 .c-rank{color:var(--accent);}
+.srank tr.top1 td.c-rank,.srank tr.top2 td.c-rank,.srank tr.top3 td.c-rank{color:var(--accent);}
 /* '개인 연봉 가리기' 마스크 연동 (조직도 카드의 .ocsal과 같은 규칙) */
-body.hide-sal .srank .c-sal{visibility:hidden;}
+body.hide-sal .srank td.c-sal{visibility:hidden;}
 
 /* MISC */
 .empty{padding:40px;text-align:center;color:var(--text3);}
@@ -2015,7 +2031,7 @@ function renderSalRank() {
   const rows = ranked.map(({e, rank, sal}) => {
     const dept = empDept(e);
     const org  = esc(empBu(e)) + (dept && dept !== empBu(e) ? ' · ' + esc(dept) : '');
-    const pos  = [empPos(e), empLv(e)].filter(Boolean).map(esc).join(' · ') || '—';
+    const pos  = posLvLabel(e);
     const tie  = tieCount[rank] > 1 ? `<span class="tie">공동</span>` : '';
     const sb   = String(e.사번||'').replace(/'/g,'');
     return `<tr class="${rank<=3?'top'+rank:''}"${sb?` onclick="openProfile('${sb}')" style="cursor:pointer;"`:''}>
@@ -2027,13 +2043,27 @@ function renderSalRank() {
     </tr>`;
   }).join('');
 
+  // ★ 헤더에도 본문과 **동일한 컬럼 클래스**를 붙인다 → 정렬이 갈릴 수 없다
   el.innerHTML = `<table class="tbl-stick srank">
     <thead><tr>
-      <th class="c-rank">순위</th><th>이름</th><th>본부/부서</th><th>직책/레벨</th>
-      <th class="c-sal">월 고정 (천원)</th>
+      <th class="c-rank">순위</th><th class="c-name">이름</th><th class="c-org">본부/부서</th>
+      <th class="c-pos">직책/레벨</th><th class="c-sal">월 고정 (천원)</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
+}
+
+// 직책 · 레벨 표기 — 두 값이 같으면 하나만 (v3.12.1)
+// [조직도] 직책='CEO' 인 인원은 레벨 컬럼도 'CEO' 라서 그대로 이으면
+// 'CEO · CEO' 가 된다 (Code.js parseLevel 이 'CEO' 를 그대로 통과시킨다).
+// Felix 처럼 'COO · Level 6' 으로 레벨이 따로 있는 경우는 그대로 둔다
+// — **값이 완전히 같을 때만** 접는다.
+function posLvLabel(e) {
+  const esc = v => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const pos = String(empPos(e)||'').trim();
+  const lv  = String(empLv(e)||'').trim();
+  const parts = (lv && lv !== pos) ? [pos, lv] : [pos];
+  return parts.filter(Boolean).map(esc).join(' · ') || '—';
 }
 
 // ═══════════════════════════════════════════════════
