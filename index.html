@@ -272,6 +272,34 @@ td.yel{color:var(--yellow);}
 .sal-body{display:none;}
 .sal-body.open{display:block;}
 
+/* ══ 표 헤더 고정 (엑셀 '틀 고정') — 공용 클래스 v3.12 ══════════════
+   ★ 급여 전체 순위(항목 2)와 퇴직자 명단(항목 5)이 **같은 클래스**를 쓴다.
+     섹션마다 따로 만들면 규칙이 갈려 유지보수가 어려워진다.
+   사용법: 스크롤 컨테이너에 .tbl-scroll, 그 안 <table>에 .tbl-stick
+   ※ border-collapse:collapse 는 position:sticky 와 함께 쓰면 헤더 테두리가
+     스크롤 시 사라진다 → separate + box-shadow 로 경계선을 그린다. */
+.tbl-scroll{overflow:auto;max-height:min(60vh,600px);}
+.tbl-stick{width:100%;border-collapse:separate;border-spacing:0;}
+.tbl-stick thead th{position:sticky;top:0;z-index:3;background:#f1f5f9;
+  box-shadow:inset 0 -1px 0 var(--border);}
+.tbl-stick tbody td{border-bottom:1px solid var(--border);}
+
+/* ── 급여 전체 순위 표 v3.12 ── */
+.srank{font-size:11.5px;}
+.srank th{color:var(--text3);font-size:10.5px;font-weight:700;padding:8px 10px;text-align:left;white-space:nowrap;}
+.srank td{padding:7px 10px;color:var(--text2);vertical-align:middle;}
+.srank tbody tr:hover td{background:var(--gray-bg);}
+.srank .c-rank{width:52px;text-align:right;font-weight:700;color:var(--text3);font-variant-numeric:tabular-nums;}
+.srank .c-name{font-weight:700;color:var(--text);white-space:nowrap;}
+.srank .c-org{color:var(--text3);}
+.srank .c-pos{color:var(--text3);white-space:nowrap;}
+.srank .c-sal{width:104px;text-align:right;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.srank .tie{font-weight:500;color:var(--text3);font-size:9.5px;margin-left:2px;}
+/* 상위 3위 살짝 강조 */
+.srank tr.top1 .c-rank,.srank tr.top2 .c-rank,.srank tr.top3 .c-rank{color:var(--accent);}
+/* '개인 연봉 가리기' 마스크 연동 (조직도 카드의 .ocsal과 같은 규칙) */
+body.hide-sal .srank .c-sal{visibility:hidden;}
+
 /* MISC */
 .empty{padding:40px;text-align:center;color:var(--text3);}
 .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:5px;}
@@ -481,9 +509,21 @@ body.print-org .ocsal{font-size:9.5px;margin-top:2px;}
 body.print-org .budget-bar-wrap{padding:5px 12px 7px;}
 body.print-org .budget-bar-track{height:11px;}
 body.print-org .budget-bar-meta{font-size:9.5px;}
+/* ══ 인쇄 제외 요소 — ★ 인쇄 관련 규칙은 전부 이 블록에만 둔다 ═══════════
+   규칙이 파일 여러 곳에 흩어지면 2026.08.05 PDF 겹침 회귀처럼 원인 추적이
+   어려워진다. 새 섹션을 인쇄에서 빼려면 .org-noprint 클래스만 붙이면 되고,
+   여기에 선택자를 추가할 필요가 없다.
+     · body.print-org  = 🖨 PDF 출력 버튼 경로 (위 print-org 모드 블록)
+     · @media print    = 버튼 없이 브라우저 인쇄(Ctrl+P)한 경우까지 커버
+   대상: 최상단 위계 미니맵(.omap-wrap), 급여 전체 순위(#sal-card),
+         전사 요약 스트립·필터·임박 이벤트·수습 현황 등 (.org-noprint) */
 @media print{
   @page{size:A4 landscape;margin:8mm;}
   body{background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .org-noprint{display:none!important;}
+  /* 표 헤더 고정은 인쇄에서 의미가 없고 조판을 깨뜨린다 */
+  .tbl-scroll{overflow:visible!important;max-height:none!important;}
+  .tbl-stick thead th{position:static!important;}
 }
 
 /* ── KPI 카드 비교행 (전년/목표) ── */
@@ -606,17 +646,19 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
       <!-- KPI + 직책별 인원 -->
       <div class="sgrid" id="org-stats"></div>
 
-      <!-- 급여 Top 10 (접이식, 최상단) -->
-      <div class="card org-noprint" style="margin-bottom:14px;">
+      <!-- 🔒 급여 전체 순위 v3.12 (접이식 · 기본 접힘 · 인쇄 제외)
+           .sal-body 는 기본 display:none 이므로 접힌 상태가 기본값이다.
+           인쇄 제외는 .org-noprint 클래스 하나로 처리 (인쇄 규칙 블록 참조). -->
+      <div class="card org-noprint" id="sal-card" style="margin-bottom:14px;">
         <div class="sal-toggle" id="sal-toggle" onclick="toggleSal()">
           <div class="fc gap8">
-            <span class="cttl">💰 급여 Top 10</span>
-            <span style="font-size:11px;color:var(--text3);">월 고정 기준 (천원)</span>
+            <span class="cttl">🔒 급여 전체 순위</span>
+            <span style="font-size:11px;color:var(--text3);" id="sal-cap">월 고정 기준 (천원)</span>
           </div>
           <span class="sal-arrow" id="sal-arrow">▼</span>
         </div>
         <div class="sal-body" id="sal-body">
-          <div style="padding:14px 18px;" id="sal-rank"></div>
+          <div class="tbl-scroll" id="sal-rank"></div>
         </div>
       </div>
 
@@ -692,7 +734,8 @@ body.print-org .budget-bar-meta{font-size:9.5px;}
             <input type="checkbox" id="statusMask" onchange="applyMasks()" style="accent-color:#2563eb;cursor:pointer;">🔒 Status 가리기
           </label>
           <button class="rbtn" style="white-space:nowrap;" onclick="printOrgPdf()">🖨 PDF 출력</button>
-          <select class="sel" id="buF" onchange="renderOrg()"><option value="">전체 본부/부서</option></select>
+          <!-- 본부 필터는 급여 전체 순위 표에도 연동된다 (v3.12) -->
+          <select class="sel" id="buF" onchange="renderOrg();renderSalRank();"><option value="">전체 본부/부서</option></select>
           <select class="sel" id="stF" onchange="renderOrg()">
             <option value="">전체 재직상태</option>
             <option value="재직">재직</option>
@@ -1139,7 +1182,6 @@ function applyMasks() {
 // 1인 조직의 인건비 유추 방지를 위해 PDF 출력 시에만 그룹 묶음 적용.
 // match: 본부/부서/팀 이름에 키워드가 포함되면 → 해당 인원을 bu(독립 그룹)로 재배치.
 //  · 해외법인 3개 → '해외법인' 단일 그룹
-//  · 연구기획 팀(BOOST에서 분리) + 대외협력 → '연구기획 · 대외협력' 독립 그룹 (명단·비용 합산 표시)
 // ※ 조직 개편으로 이름이 바뀌면 여기 키워드만 수정하면 됨.
 const PRINT_MERGE_RULES = [
   { match:['미국','일본','싱가포르','해외'], bu:'해외법인 (미국 · 일본 · 싱가포르)' },
@@ -1924,21 +1966,74 @@ function mkOrgCard(e) {
 }
 
 // ═══════════════════════════════════════════════════
-// 급여 Top 10
+// 🔒 급여 전체 순위 v3.12 (구 '급여 Top 10')
+// ──────────────────────────────────────────────────
+// ★ 급여 기준 필드 = empSal(e) = e.월고정만
+//   [조직도] '월고정총액(만원)' 컬럼이다. 구 Top 10이 쓰던 필드를 **그대로
+//   승계**했다 (연봉총액이 아니다). 표시는 만원 → ×10 하여 천원 단위로,
+//   이것도 구 Top 10과 동일하다. 조직도 카드의 'N천원/월'과 같은 값이다.
+//
+// ★ 공동 순위 (1, 2, 2, 4 방식)
+//   같은 급여가 다른 순위로 보이면 오해를 만든다. 급여가 이전 행과 같으면
+//   순위를 유지하고, 다르면 **배열 인덱스+1** 로 점프한다 → 2위가 2명이면
+//   다음은 4위. (1,2,2,3 식으로 연속시키지 않는다)
+//
+// 대상: 재직자(퇴직예정 포함) 중 급여 > 0. 퇴직자는 제외한다.
+// 본부 필터(buF) 연동 — 필터가 걸리면 그 조직 내 순위(1..N)가 된다.
 // ═══════════════════════════════════════════════════
 function renderSalRank() {
   const el = document.getElementById('sal-rank');
-  const ranked = [...S.emps]
-    .filter(e=>empSt(e)!=='퇴직'&&empSal(e)>0)
-    .sort((a,b)=>empSal(b)-empSal(a)).slice(0,10);
-  if (!ranked.length) { el.innerHTML=`<div class="empty">급여 데이터 없음</div>`; return; }
-  el.innerHTML = ranked.map((e,i)=>`
-    <div class="rrow" style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);">
-      <div style="width:20px;font-size:11px;font-weight:700;color:var(--text3);">${i+1}</div>
-      <div style="flex:1;font-size:12px;font-weight:600;color:var(--text);">${empName(e)}</div>
-      <div style="font-size:11px;color:var(--text3);">${empBu(e)} · ${empPos(e)||empLv(e)||''}</div>
-      <div style="font-size:12px;font-weight:700;color:var(--accent);">${Math.round(empSal(e)*10).toLocaleString()}천원</div>
-    </div>`).join('');
+  if (!el) return;
+  const cap = document.getElementById('sal-cap');
+  const buSel = document.getElementById('buF');
+  const buF = buSel ? buSel.value : '';
+
+  let pool = S.emps.filter(e => empSt(e) !== '퇴직');
+  if (buF) pool = pool.filter(e => empBu(e) === buF);
+  const list = pool.filter(e => empSal(e) > 0).sort((a,b) => empSal(b) - empSal(a));
+
+  // 캡션: 대상 인원 + 급여 미입력 제외 건수를 밝혀 총원과 대조 가능하게 한다
+  const noSal = pool.length - list.length;
+  if (cap) {
+    cap.textContent = '월 고정 기준 (천원) · ' + list.length + '명'
+      + (buF ? ' · ' + buF : ' · 전사')
+      + (noSal > 0 ? ' · 급여 미입력 ' + noSal + '명 제외' : '');
+  }
+  if (!list.length) { el.innerHTML = `<div class="empty" style="padding:18px;">급여 데이터 없음</div>`; return; }
+
+  const esc = v => String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // 공동 순위 계산 + 동순위 인원수 집계 (동순위 표시용)
+  let rank = 0, prev = null;
+  const tieCount = {};
+  const ranked = list.map((e,i) => {
+    const sal = empSal(e);
+    if (sal !== prev) { rank = i + 1; prev = sal; }
+    tieCount[rank] = (tieCount[rank] || 0) + 1;
+    return { e, rank, sal };
+  });
+
+  const rows = ranked.map(({e, rank, sal}) => {
+    const dept = empDept(e);
+    const org  = esc(empBu(e)) + (dept && dept !== empBu(e) ? ' · ' + esc(dept) : '');
+    const pos  = [empPos(e), empLv(e)].filter(Boolean).map(esc).join(' · ') || '—';
+    const tie  = tieCount[rank] > 1 ? `<span class="tie">공동</span>` : '';
+    const sb   = String(e.사번||'').replace(/'/g,'');
+    return `<tr class="${rank<=3?'top'+rank:''}"${sb?` onclick="openProfile('${sb}')" style="cursor:pointer;"`:''}>
+      <td class="c-rank">${rank}${tie}</td>
+      <td class="c-name">${esc(empName(e))}</td>
+      <td class="c-org">${org||'—'}</td>
+      <td class="c-pos">${pos}</td>
+      <td class="c-sal">${Math.round(sal*10).toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `<table class="tbl-stick srank">
+    <thead><tr>
+      <th class="c-rank">순위</th><th>이름</th><th>본부/부서</th><th>직책/레벨</th>
+      <th class="c-sal">월 고정 (천원)</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 // ═══════════════════════════════════════════════════
